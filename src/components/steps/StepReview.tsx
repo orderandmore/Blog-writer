@@ -143,10 +143,12 @@ export function StepReview() {
         </div>
       )}
 
-      {/* Tabs: Preview | Files | Frontmatter | Syndication */}
+      {/* Tabs: Preview | Syndication
+         (Files + Frontmatter tabs removed — we publish via WP REST, not
+         file commits, and PostMeta is shown inline in Step 3.) */}
       <div className="border-b border-[var(--border)]">
         <div className="flex gap-1">
-          {["preview", "files", "frontmatter", "syndication"].map((tab) => (
+          {["preview", "syndication"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -189,31 +191,6 @@ export function StepReview() {
               />
             </div>
           </div>
-        )}
-
-        {activeTab === "files" && (
-          <div className="space-y-2">
-            <p className="text-xs text-[var(--muted)] mb-3">
-              Files that will be committed:
-            </p>
-            {filesToCommit.map((f) => (
-              <div
-                key={f}
-                className="flex items-center gap-2 px-3 py-2 rounded bg-[var(--surface)] border border-[var(--border)]"
-              >
-                <span className="text-xs text-[var(--success)]">+</span>
-                <code className="text-xs text-[var(--foreground)] font-mono">
-                  {f}
-                </code>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === "frontmatter" && (
-          <pre className="text-xs text-[var(--foreground)] bg-[var(--surface)] border border-[var(--border)] rounded-lg p-4 overflow-x-auto font-mono">
-            {buildFrontmatterPreview(fm)}
-          </pre>
         )}
 
         {activeTab === "syndication" && (
@@ -369,18 +346,18 @@ export function StepReview() {
             disabled={publishing || !fm.title || !fm.description}
             className="px-6 py-2.5 rounded-lg bg-[var(--success)] text-white text-sm font-medium hover:bg-[var(--success)]/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {publishing ? "Publishing..." : "Publish to Main"}
+            {publishing ? "Publishing..." : "Publish Live"}
           </button>
           <button
             onClick={() => handlePublish("draft")}
             disabled={publishing || !fm.title || !fm.description}
             className="px-6 py-2.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] text-sm font-medium hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {publishing ? "Creating PR..." : "Create Draft PR"}
+            {publishing ? "Saving..." : "Save as WP Draft"}
           </button>
           {(!fm.title || !fm.description) && (
             <p className="text-xs text-[var(--warning)]">
-              Fill in required metadata (title, author, description) first.
+              Fill in title and description in Step 3 first.
             </p>
           )}
         </div>
@@ -616,32 +593,6 @@ function ImageDownloads({
           <a
             href={`${base}-${socialKey}?download=${encodeURIComponent(
               `${featuredBase}-${socialKey}`,
-            )}`}
-            className="text-xs px-2 py-1 rounded bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/30"
-          >
-            Download JPG
-          </a>
-        </div>
-      )}
-      {dest.hasSocialImage && (
-        <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`${base}-press.jpg`}
-            alt={`${dest.name} press preview`}
-            className="w-11 h-11 rounded object-cover bg-[var(--border)] shrink-0"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-[var(--foreground)]">
-              Press image (400x400 JPG)
-            </p>
-            <p className="text-[10px] text-[var(--muted)]">
-              Required by {dest.name} submission form.
-            </p>
-          </div>
-          <a
-            href={`${base}-press.jpg?download=${encodeURIComponent(
-              `${featuredBase}-press.jpg`,
             )}`}
             className="text-xs px-2 py-1 rounded bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/30"
           >

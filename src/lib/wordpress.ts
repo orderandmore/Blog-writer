@@ -64,7 +64,7 @@ export interface CreatePostInput {
   status: "draft" | "publish" | "future" | "pending" | "private";
   date?: string; // ISO 8601 — for "future" scheduled posts
   categories?: number[];
-  tags?: string[]; // names (WP auto-creates) OR IDs
+  tags?: number[]; // integer IDs — use resolveTagIds() to convert names first
   featured_media?: number;
   meta?: Record<string, string | number | boolean>;
 }
@@ -244,9 +244,55 @@ export async function createCategory(
   });
 }
 
+export async function createTag(name: string, slug?: string): Promise<WPTag> {
+  return wpFetch<WPTag>("/wp/v2/tags", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, slug }),
+  });
+}
+
+/**
+ * Look up or create each tag by name, returning integer IDs suitable for
+ * /wp/v2/posts.tags. WP REST rejects string tag values with a 400 — it
+ * only accepts integers. The cached tag list is refreshed when a lookup
+ * miss happens so freshly-created-elsewhere tags are picked up.
+ */
+export async function resolveTagIds(names: string[]): Promise<number[]> {
+  if (names.length === 0) return [];
+  let tags = await getCachedTags();
+  const ids: number[] = [];
+  let refreshed = false;
+
+  for (const name of names) {
+    const trimmed = name.trim();
+    if (!trimmed) continue;
+    const lc = trimmed.toLowerCase();
+    let match = tags.find(
+      (t) => t.name.toLowerCase() === lc || t.slug.toLowerCase() === lc,
+    );
+    if (!match && !refreshed) {
+      tags = await getCachedTags(true);
+      refreshed = true;
+      match = tags.find(
+        (t) => t.name.toLowerCase() === lc || t.slug.toLowerCase() === lc,
+      );
+    }
+    if (match) {
+      ids.push(match.id);
+      continue;
+    }
+    const created = await createTag(trimmed);
+    ids.push(created.id);
+    tags = [...tags, created];
+  }
+  return ids;
+}
+
 // ---------- Caching helpers (used by API routes) ----------
 
 let categoriesCache: { value: WPCategory[]; at: number } | null = null;
+let tagsCache: { value: WPTag[]; at: number } | null = null;
 let pagesCache: { value: WPPostSummary[]; at: number } | null = null;
 const TEN_MIN = 10 * 60 * 1000;
 
@@ -256,6 +302,15 @@ export async function getCachedCategories(force = false): Promise<WPCategory[]> 
   }
   const value = await listCategories();
   categoriesCache = { value, at: Date.now() };
+  return value;
+}
+
+export async function getCachedTags(force = false): Promise<WPTag[]> {
+  if (!force && tagsCache && Date.now() - tagsCache.at < TEN_MIN) {
+    return tagsCache.value;
+  }
+  const value = await listTags();
+  tagsCache = { value, at: Date.now() };
   return value;
 }
 
@@ -270,6 +325,7 @@ export async function getCachedPages(force = false): Promise<WPPostSummary[]> {
 
 export function clearWpCaches(): void {
   categoriesCache = null;
+  tagsCache = null;
   pagesCache = null;
 }
 

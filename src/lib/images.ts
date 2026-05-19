@@ -10,9 +10,8 @@ import type { CropPosition } from "./schema";
  *   - Featured/hero: 1200×408 (≈ 2.95:1) — matches the theme's render
  *     aspect; theme won't have to crop.
  *   - Body: 1200×1200 — 2× the 600×600 render for retina headroom.
- *   - Social wide JPG: 1200×630 — Buffer (Facebook) + GMB
+ *   - Social wide JPG: 1200×630 — Buffer (Facebook, LinkedIn) + GMB
  *   - Social square JPG: 1080×1080 — Buffer (Instagram)
- *   - Pinterest portrait JPG: 1000×1500 — Buffer (Pinterest)
  *
  * Scratch storage moved to Vercel Blob since Vercel's serverless filesystem
  * is read-only except for /tmp (which is ephemeral). Local dev still works
@@ -101,25 +100,6 @@ export async function processSocialSquareImage(
 ): Promise<ProcessedImage> {
   const result = await sharp(input)
     .resize(1080, 1080, { fit: "cover", position })
-    .jpeg({ quality: 88 })
-    .toBuffer({ resolveWithObject: true });
-
-  return {
-    buffer: result.data,
-    width: result.info.width,
-    height: result.info.height,
-    size: result.info.size,
-    format: "jpeg",
-  };
-}
-
-/** Pinterest portrait JPG: 1000×1500 (2:3) — Buffer-fed for Pinterest pins. */
-export async function processPinterestImage(
-  input: Buffer,
-  position: CropPosition = "centre",
-): Promise<ProcessedImage> {
-  const result = await sharp(input)
-    .resize(1000, 1500, { fit: "cover", position })
     .jpeg({ quality: 88 })
     .toBuffer({ resolveWithObject: true });
 

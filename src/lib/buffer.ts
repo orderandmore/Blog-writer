@@ -8,7 +8,7 @@
 
 const BUFFER_ENDPOINT = "https://api.buffer.com";
 
-export type BufferService = "facebook" | "instagram" | "pinterest";
+export type BufferService = "facebook" | "instagram" | "linkedin";
 
 export interface BufferChannel {
   id: string;
@@ -96,7 +96,7 @@ export async function listChannels(force = false): Promise<BufferChannel[]> {
 
 /**
  * Find the Buffer channel id for one of the services we syndicate to. Buffer
- * normalizes service slugs (e.g. "facebook" / "instagram" / "pinterest"), but
+ * normalizes service slugs (e.g. "facebook" / "instagram" / "linkedin"), but
  * accounts can have multiple of the same service — we take the first match.
  */
 export async function findChannelId(
@@ -154,16 +154,16 @@ export async function createBufferPost(
     ? [{ image: { url: input.imageUrl } }]
     : undefined;
 
-  // Instagram, Facebook, and Pinterest require channel-specific metadata.
-  // PostInputMetaData uses @oneOf, so set exactly one for each.
+  // Instagram and Facebook require channel-specific metadata. LinkedIn
+  // accepts default text+image posts without per-channel options, so we
+  // omit metadata for it. PostInputMetaData uses @oneOf — set exactly one
+  // when applicable.
   const metadata =
     input.service === "instagram"
       ? { instagram: { type: "post", shouldShareToFeed: true } }
       : input.service === "facebook"
         ? { facebook: { type: "post" } }
-        : input.service === "pinterest"
-          ? { pinterest: { type: "pin" } }
-          : undefined;
+        : undefined;
 
   const data = await bufferGraphQL<{
     createPost:

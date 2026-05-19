@@ -112,9 +112,10 @@ const DEFAULTS: Record<string, string> = {
   "alt-text.user":
     'Write alt text for {{imageCount}} images in this blog post. Each alt should describe what is visually in the image in 8-15 words — concrete and specific. Don\'t start with "Image of" or "Photo of". If a filename hint is provided, use it as inspiration but describe the actual subject.\n\nTitle: {{title}}\nFilename hints: {{filenames}}\nArticle excerpt:\n{{body}}\n\nReturn a JSON array of {{imageCount}} alt-text strings.',
 
-  // socialAndPress — now just "social"; press release + Twitter dropped.
+  // socialAndPress (key name kept for migration compat) — produces only
+  // social copy for Facebook, Instagram, LinkedIn, GMB. No press releases.
   "socialAndPress.system":
-    "You write social media copy for Patty Powers' home organizing business (Order and More LLC, Littleton, Colorado). {{brandRules}}\n\nNo hashtags on any platform. Stay strictly within the character limits noted per platform — count URLs toward the total where the platform description says so.\n\nThe article URL provided in the user prompt ({{url}}) is the canonical permalink. When a platform requires a URL, use exactly that URL verbatim — no shorteners. Facebook MUST contain this exact URL at the end. Pinterest pin descriptions SHOULD include the URL at the end since pins link out anyway. Instagram and GMB do NOT include URLs.",
+    "You write social media copy for Patty Powers' home organizing business (Order and More LLC, Littleton, Colorado). {{brandRules}}\n\nNo hashtags on any platform. Stay strictly within the character limits noted per platform — count URLs toward the total where the platform description says so. STRICT compliance with the GMB limit (1500 chars) is critical — aim for ~800-1000 chars there, never exceed 1450.\n\nThe article URL provided in the user prompt ({{url}}) is the canonical permalink. When a platform requires a URL, use exactly that URL verbatim — no shorteners. Facebook and LinkedIn MUST contain this exact URL at the end. Instagram and GMB do NOT include URLs.",
   "socialAndPress.user":
     "Generate social media copy for this blog post.\n\nTitle: {{title}}\nArticle URL: {{url}}\nContact: {{contactName}}, {{contactEmail}}{{contactPhoneSuffix}}\n\nArticle:\n{{body}}{{linksBlock}}",
 
@@ -133,13 +134,13 @@ const DEFAULTS: Record<string, string> = {
   // socialAndPress tool schema — keep platform-specific guidance as separate
   // keys so the Settings UI can edit them granularly.
   "socialAndPress.schema.gmb":
-    "Google Business Profile post, max 1500 chars (aim for ~900). No hashtags. NO links — GMB strips them. Soft Patty-voice CTA at the end inviting Littleton-area contact.",
+    "Google Business Profile post. AIM for 800-1000 chars; HARD CAP 1450 chars (max 1500 — never exceed). No hashtags. NO links — GMB strips them. Soft Patty-voice CTA at the end inviting Littleton-area contact. If you would write past 1100 chars, stop and tighten the paragraph — never overshoot.",
   "socialAndPress.schema.facebook":
     "Facebook caption in Patty's voice, max 500 chars, conversational. Must include the exact article URL ({{url}} in the user prompt) verbatim at the end. No hashtags.",
   "socialAndPress.schema.instagram":
     "Instagram caption in Patty's voice, conversational and image-companion-style. No hashtags. No URL (IG doesn't make links clickable).",
-  "socialAndPress.schema.pinterest":
-    "Pinterest pin description, max 500 chars. Keyword-rich and search-friendly (Pinterest is a search engine). No hashtags. Lead with the value/promise. End with the article URL ({{url}}) since pins link out.",
+  "socialAndPress.schema.linkedin":
+    "LinkedIn post in Patty's voice, max 700 chars. More professional and substantive than Facebook — share a clear insight or takeaway from the article, suitable for an audience of busy professionals and parents. No hashtags. Must include the exact article URL ({{url}}) verbatim at the end.",
 };
 
 export type PromptKey = keyof typeof DEFAULTS;

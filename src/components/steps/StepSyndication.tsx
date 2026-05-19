@@ -115,9 +115,10 @@ export function StepSyndication() {
           Syndication Copy
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Generate social media posts and a press release in one go. Internal
-          links are pulled from a local cache of the Astro repo — refresh after
-          you {`'git pull'`} the site.
+          Generate Facebook, Instagram, LinkedIn, and Google Business Profile
+          posts in one go. Internal links are pulled from orderandmore.com via
+          the WP REST API — refresh after publishing new posts to expand the
+          list.
         </p>
       </div>
 
@@ -142,9 +143,7 @@ export function StepSyndication() {
               disabled={generating}
               className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50"
             >
-              {generating
-                ? "Generating..."
-                : "Generate Social + Press Release"}
+              {generating ? "Generating..." : "Generate Social Copy"}
             </button>
             <div className="flex flex-col">
               <button
@@ -191,17 +190,17 @@ export function StepSyndication() {
             />
           </div>
 
-          {/* Pinterest pin */}
+          {/* LinkedIn */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-[var(--foreground)]">
-              Pinterest
+              LinkedIn
             </h3>
             <CopyBlock
-              label="Pin description"
-              hint="Pinterest is a search engine — keyword-rich, ≤500 chars, URL at the end."
-              value={state.socialCopy?.pinterest || ""}
-              maxChars={500}
-              warning={findWarning(warnings, "pinterest")}
+              label="LinkedIn post"
+              hint="Professional tone, ≤700 chars, article URL at the end."
+              value={state.socialCopy?.linkedin || ""}
+              maxChars={700}
+              warning={findWarning(warnings, "linkedin")}
             />
           </div>
         </>

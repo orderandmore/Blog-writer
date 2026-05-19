@@ -4,7 +4,6 @@ import {
   processBodyImage,
   processSocialJpgImage,
   processSocialSquareImage,
-  processPinterestImage,
   getImageInfo,
   saveScratchImage,
 } from "@/lib/images";
@@ -67,14 +66,13 @@ export async function POST(request: NextRequest) {
         processed = await processFeaturedImage(buffer, cropPosition);
 
         // Buffer-fed JPG variants. Stay in scratch, never uploaded to WP.
+        // Wide (1200×630) covers Facebook, LinkedIn, GMB.
+        // Square (1080×1080) covers Instagram.
         const socialJpg = await processSocialJpgImage(buffer, cropPosition);
         await saveScratchImage(draftId, `${imgId}-social.jpg`, socialJpg.buffer);
 
         const socialSquare = await processSocialSquareImage(buffer, cropPosition);
         await saveScratchImage(draftId, `${imgId}-social-square.jpg`, socialSquare.buffer);
-
-        const pinterest = await processPinterestImage(buffer, cropPosition);
-        await saveScratchImage(draftId, `${imgId}-pinterest.jpg`, pinterest.buffer);
       } else {
         processed = await processBodyImage(buffer, false, cropPosition);
       }

@@ -309,7 +309,7 @@ export async function listDraftsSummary(
         metadata: Boolean(
           frontmatter?.title && frontmatter?.description,
         ),
-        social: Boolean(socialCopy?.facebook || socialCopy?.pinterest),
+        social: Boolean(socialCopy?.facebook || socialCopy?.linkedin),
         published: row.status === "published",
       },
       syndicated: { posted: posted.length, total: totalDestinations },

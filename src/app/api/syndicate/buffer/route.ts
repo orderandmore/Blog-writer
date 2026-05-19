@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 
 async function resolveImageUrl(
   draft: Record<string, unknown>,
-  variant: "wide" | "square" | "portrait" | undefined,
+  variant: "wide" | "square" | undefined,
 ): Promise<string | null> {
   const imagesRaw = draft.images;
   if (typeof imagesRaw !== "string") return null;
@@ -113,8 +113,6 @@ async function resolveImageUrl(
   const key =
     variant === "square"
       ? `${featured.id}-social-square.jpg`
-      : variant === "portrait"
-        ? `${featured.id}-pinterest.jpg`
-        : `${featured.id}-social.jpg`;
+      : `${featured.id}-social.jpg`;
   return await scratchImageUrl(draftId, key);
 }

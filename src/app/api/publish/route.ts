@@ -6,6 +6,7 @@ import {
   createPost,
   uploadMedia,
   adminEditUrl,
+  resolveTagIds,
   type CreatePostInput,
 } from "@/lib/wordpress";
 import { detectSeoPlugin, buildSeoMeta } from "@/lib/seo-plugin";
@@ -130,7 +131,12 @@ export async function POST(request: NextRequest) {
       focusKeyword: meta.focusKeyword,
     });
 
-    // 6. Build + send the WP create-post request.
+    // 6. Convert tag names → integer IDs (WP REST requires integers).
+    //    resolveTagIds() looks up existing tags by name/slug, creating any
+    //    that don't exist yet.
+    const tagIds = await resolveTagIds(meta.tags);
+
+    // 7. Build + send the WP create-post request.
     const postInput: CreatePostInput = {
       title: meta.title,
       content: html,
@@ -139,7 +145,7 @@ export async function POST(request: NextRequest) {
       status: meta.status === "future" ? "future" : meta.status,
       date: meta.status === "future" ? meta.pubDate : undefined,
       categories: meta.categoryIds,
-      tags: meta.tags,
+      tags: tagIds,
       featured_media: featuredMediaId,
     };
     if (Object.keys(seoMeta).length > 0) {
@@ -148,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     const created = await createPost(postInput);
 
-    // 7. Persist WP IDs on the draft.
+    // 8. Persist WP IDs on the draft.
     if (draftId) {
       await updateDraft(draftId, {
         status: "published",
@@ -158,7 +164,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 8. Return what the wizard needs to render the success state +
+    // 9. Return what the wizard needs to render the success state +
     //    deep-link to her WP admin.
     return NextResponse.json({
       wpPostId: created.id,

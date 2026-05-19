@@ -11,9 +11,9 @@ export interface Destination {
   maxChars?: number;
   description: string;
   /** Buffer service slug — set on destinations submittable via Buffer API. */
-  bufferService?: "facebook" | "instagram" | "pinterest";
+  bufferService?: "facebook" | "instagram" | "linkedin";
   /** Which scratch JPG variant Buffer should fetch as the post image. */
-  socialImageVariant?: "wide" | "square" | "portrait";
+  socialImageVariant?: "wide" | "square";
 }
 
 export const destinations: Destination[] = [
@@ -43,17 +43,17 @@ export const destinations: Destination[] = [
     socialImageVariant: "square",
   },
   {
-    id: "pinterest",
-    name: "Pinterest",
+    id: "linkedin",
+    name: "LinkedIn",
     format: "social",
-    copyField: "pinterest",
+    copyField: "linkedin",
     hasSocialImage: true,
-    urlEnvVar: "PINTEREST_URL",
+    urlEnvVar: "LINKEDIN_URL",
     copyMode: "plain",
-    maxChars: 500,
-    description: "Pin description, keyword-rich. 1000×1500 portrait JPG.",
-    bufferService: "pinterest",
-    socialImageVariant: "portrait",
+    maxChars: 700,
+    description: "Professional tone, more substance than FB. Article URL at end. 1200×630 JPG.",
+    bufferService: "linkedin",
+    socialImageVariant: "wide",
   },
   {
     id: "gmb",

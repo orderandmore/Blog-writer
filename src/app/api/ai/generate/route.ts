@@ -72,18 +72,36 @@ function stripFences(text: string): string {
 }
 
 // Social character limits. Instagram has no hard limit we enforce.
+// GMB is tightened to 1450 (50-char buffer under the 1500 hard cap) since
+// the model consistently overshoots when given exactly 1500.
 const SOCIAL_LIMITS: Record<string, number> = {
-  gmb: 1500,
+  gmb: 1450,
   facebook: 500,
-  pinterest: 500,
+  linkedin: 700,
 };
 
 type SocialBundle = {
   gmb: string;
   facebook: string;
   instagram: string;
-  pinterest: string;
+  linkedin: string;
 };
+
+function truncateAt(text: string, max: number): string {
+  if (text.length <= max) return text;
+  // Truncate to the last sentence boundary within max chars, falling back
+  // to the last word boundary. Avoids mid-sentence cutoffs.
+  const slice = text.slice(0, max);
+  const sentenceEnd = Math.max(
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+  );
+  if (sentenceEnd > max * 0.6) return slice.slice(0, sentenceEnd + 1);
+  const wordEnd = slice.lastIndexOf(" ");
+  if (wordEnd > max * 0.7) return slice.slice(0, wordEnd) + "…";
+  return slice + "…";
+}
 
 function checkLimits(data: SocialBundle): string[] {
   const over: string[] = [];
@@ -246,12 +264,12 @@ export async function POST(request: NextRequest) {
               type: "string",
               description: await renderPrompt("socialAndPress.schema.instagram", urlVars),
             },
-            pinterest: {
+            linkedin: {
               type: "string",
-              description: await renderPrompt("socialAndPress.schema.pinterest", urlVars),
+              description: await renderPrompt("socialAndPress.schema.linkedin", urlVars),
             },
           },
-          required: ["gmb", "facebook", "instagram", "pinterest"],
+          required: ["gmb", "facebook", "instagram", "linkedin"],
         };
 
         const messages: Anthropic.MessageParam[] = [{ role: "user", content: userPrompt }];
@@ -260,7 +278,7 @@ export async function POST(request: NextRequest) {
           systemPrompt,
           messages,
           "emit_social_copy",
-          "Emit social media copy for GMB, Facebook, Instagram, X, and Pinterest in one structured response.",
+          "Emit social media copy for GMB, Facebook, Instagram, and LinkedIn in one structured response.",
           inputSchema,
         );
 
@@ -298,7 +316,7 @@ export async function POST(request: NextRequest) {
               systemPrompt,
               retryMessages,
               "emit_social_copy",
-              "Emit social media copy for GMB, Facebook, Instagram, X, and Pinterest in one structured response.",
+              "Emit social media copy for GMB, Facebook, Instagram, and LinkedIn in one structured response.",
               inputSchema,
             );
             warnings = checkLimits(data);
@@ -306,6 +324,17 @@ export async function POST(request: NextRequest) {
             // ignored — keep first response
           }
         }
+
+        // Server-side hard truncation as the final safety net. Even after the
+        // retry, the model occasionally overshoots GMB by 20-50 chars. We
+        // trim at sentence/word boundaries so the user sees a clean cut.
+        for (const [field, limit] of Object.entries(SOCIAL_LIMITS)) {
+          const value = (data as Record<string, string>)[field];
+          if (typeof value === "string" && value.length > limit) {
+            (data as Record<string, string>)[field] = truncateAt(value, limit);
+          }
+        }
+        warnings = checkLimits(data);
 
         return NextResponse.json({ data, warnings });
       }

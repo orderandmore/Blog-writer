@@ -72,11 +72,12 @@ export interface ImageMeta {
   wpMediaUrl?: string;
 }
 
-// Social copy bundle shape. No press releases (no press circuit) and no
-// Twitter/X (Patty doesn't use it). Pinterest is the URL-bearing channel.
+// Social copy bundle shape. Patty publishes to Facebook, Instagram,
+// LinkedIn, plus GMB (copy-to-clipboard). No press releases, no X/Twitter,
+// no Pinterest.
 export interface SocialCopyBundle {
   gmb: string;
   facebook: string;
   instagram: string;
-  pinterest: string;
+  linkedin: string;
 }
