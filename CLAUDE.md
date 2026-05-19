@@ -38,9 +38,11 @@ Forked from `blog-portal` (the Virtue Solar version), heavily rewired to target 
 
 ### Image variants
 
-- **Featured**: target dimensions matched to her theme — verify at setup time by inspecting `media_details.sizes` on an existing post. Default 1200×675 WebP q85.
-- **Body**: 1200×800 WebP q85
-- **Social wide JPG**: 1200×630, q88 — Buffer (Facebook/X) + GMB
+Tuned for the Kadence theme on orderandmore.com (hero renders at 1314×446 ≈ 2.95:1; body shown ~600×600).
+
+- **Featured/hero**: 1200×408 WebP q85 (matches her hero aspect — no crop)
+- **Body**: 1200×1200 WebP q85 (2× retina headroom over the 600×600 render)
+- **Social wide JPG**: 1200×630, q88 — Buffer (Facebook) + GMB
 - **Social square JPG**: 1080×1080, q88 — Buffer (Instagram)
 - **Pinterest JPG**: 1000×1500 (2:3 portrait), q88 — Buffer (Pinterest)
 

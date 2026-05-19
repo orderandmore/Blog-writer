@@ -3,16 +3,16 @@ import { put, head, del } from "@vercel/blob";
 import type { CropPosition } from "./schema";
 
 /**
- * Image pipeline. Sharp processors stay essentially what they were; what
- * changed for the WP target:
- *   - Featured: 1200×800 (was 800×450 for the Astro template)
- *   - Body: 1200×800 (was 800×800)
- *   - Social wide JPG: 1200×630 — kept for Buffer (Facebook / X) + GMB
- *   - Social square JPG: 1080×1080 — kept for Buffer (Instagram)
- *   - Pinterest portrait JPG: 1000×1500 — NEW
- *   - Press 400×400: DROPPED (no AltEnergyMag / chamber circuit for Patty)
- *   - Social OG WebP 1200×630: DROPPED (WP/Yoast handles og:image from the
- *     uploaded featured image)
+ * Image pipeline. Variant dimensions tuned for Patty's Kadence theme on
+ * orderandmore.com (hero renders at ~1314×446 = 2.95:1, body images shown
+ * around 600×600).
+ *
+ *   - Featured/hero: 1200×408 (≈ 2.95:1) — matches the theme's render
+ *     aspect; theme won't have to crop.
+ *   - Body: 1200×1200 — 2× the 600×600 render for retina headroom.
+ *   - Social wide JPG: 1200×630 — Buffer (Facebook) + GMB
+ *   - Social square JPG: 1080×1080 — Buffer (Instagram)
+ *   - Pinterest portrait JPG: 1000×1500 — Buffer (Pinterest)
  *
  * Scratch storage moved to Vercel Blob since Vercel's serverless filesystem
  * is read-only except for /tmp (which is ephemeral). Local dev still works
@@ -27,13 +27,14 @@ export interface ProcessedImage {
   format: string;
 }
 
-/** Featured image: 1200×800 (3:2), WebP q85, cover crop, strip EXIF. */
+/** Featured image: 1200×408 (≈2.95:1), WebP q85, cover crop, strip EXIF.
+ * Matches the Kadence hero render aspect on orderandmore.com. */
 export async function processFeaturedImage(
   input: Buffer,
   position: CropPosition = "centre",
 ): Promise<ProcessedImage> {
   const result = await sharp(input)
-    .resize(1200, 800, { fit: "cover", position })
+    .resize(1200, 408, { fit: "cover", position })
     .webp({ quality: 85 })
     .toBuffer({ resolveWithObject: true });
 
@@ -46,7 +47,7 @@ export async function processFeaturedImage(
   };
 }
 
-/** Body image: 1200×800 cover (or aspect-preserving), WebP q85. */
+/** Body image: 1200×1200 square cover (or aspect-preserving), WebP q85. */
 export async function processBodyImage(
   input: Buffer,
   preserveAspect = false,
@@ -59,7 +60,7 @@ export async function processBodyImage(
       withoutEnlargement: true,
     });
   } else {
-    pipeline.resize(1200, 800, { fit: "cover", position });
+    pipeline.resize(1200, 1200, { fit: "cover", position });
   }
   const result = await pipeline
     .webp({ quality: 85 })

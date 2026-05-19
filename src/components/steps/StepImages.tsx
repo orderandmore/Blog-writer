@@ -194,7 +194,7 @@ export function StepImages() {
           <h3 className="text-sm font-medium text-[var(--foreground)] mb-3">
             Featured Image
             <span className="text-[var(--muted)] font-normal ml-2">
-              800×450 WebP · auto-generates social + press variants
+              1200×408 WebP · auto-generates social + Pinterest variants
             </span>
           </h3>
           <div className="space-y-3">
@@ -216,7 +216,7 @@ export function StepImages() {
           <h3 className="text-sm font-medium text-[var(--foreground)] mb-3">
             Body Images
             <span className="text-[var(--muted)] font-normal ml-2">
-              800×800 WebP
+              1200×1200 WebP
             </span>
           </h3>
           <div className="space-y-3">
@@ -248,10 +248,10 @@ export function StepImages() {
       <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--muted)] space-y-1">
         <p>
           <strong className="text-[var(--foreground)]">Featured:</strong>{" "}
-          800×450, WebP q85, cover crop
+          1200×408, WebP q85, cover crop
         </p>
         <p>
-          <strong className="text-[var(--foreground)]">Body:</strong> 800×800,
+          <strong className="text-[var(--foreground)]">Body:</strong> 1200×1200,
           WebP q85, cover crop
         </p>
         <p className="pt-1 text-[var(--muted)]">

@@ -8,8 +8,8 @@ const PRESETS: Record<
   string,
   { width: number; height: number; format: Format; quality: number }
 > = {
-  featured: { width: 1200, height: 800, format: "webp", quality: 85 },
-  body: { width: 1200, height: 800, format: "webp", quality: 85 },
+  featured: { width: 1200, height: 408, format: "webp", quality: 85 },
+  body: { width: 1200, height: 1200, format: "webp", quality: 85 },
   social: { width: 1200, height: 630, format: "jpeg", quality: 88 },
   "social-square": { width: 1080, height: 1080, format: "jpeg", quality: 88 },
   pinterest: { width: 1000, height: 1500, format: "jpeg", quality: 88 },

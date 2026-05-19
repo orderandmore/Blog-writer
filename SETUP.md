@@ -234,7 +234,7 @@ These are deliberate scope cuts or things that need a focused pass after first d
 
 1. **UI step components were ported mechanically; expect rough edges.** `src/components/steps/StepMetadata.tsx`, `StepReview.tsx`, and `StepSyndication.tsx` all had their state shape and API targets swapped, but the visual layouts may have minor leftover assumptions from the parent project. Run `npm run build` once after first deploy to catch any remaining type errors; they'll be obvious and small.
 
-2. **Featured-image dimensions.** Currently 1200×800 (3:2). If her theme expects 16:9 (1200×675) or different, edit `processFeaturedImage()` in `src/lib/images.ts` — it's a one-line change.
+2. **Featured-image dimensions.** Currently 1200×408 (≈2.95:1, matched to her Kadence theme's hero render at 1314×446). If the theme changes or you want sharper retina, bump to 1800×612 in `processFeaturedImage()` in `src/lib/images.ts` — it's a one-line change.
 
 3. **Gutenberg block compatibility.** Posts created via the portal arrive in WP as one "Classic" block (raw HTML wrapped). They render correctly but look different in the WP editor than her existing block-built posts. If she wants to edit posts in WP admin after the portal creates them, this is a minor UX wart. Could be solved later by emitting `<!-- wp:paragraph -->` block comments in `src/lib/markdown.ts:renderMarkdown`.
 
