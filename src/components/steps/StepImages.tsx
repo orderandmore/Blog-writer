@@ -10,6 +10,62 @@ function previewPathFor(filename: string): string {
 }
 import { CROP_POSITIONS, type CropPosition } from "@/lib/schema";
 
+/**
+ * Downscale an image client-side before upload. Vercel's serverless function
+ * body limit is 4.5MB on Hobby plans; camera photos are 5-12MB each, so
+ * uploading two raw photos exceeds the limit and triggers a 413.
+ *
+ * We resize to max 2400px on the longest edge using canvas, which is
+ * comfortably more than the largest server-side variant we produce
+ * (1200×1200 body) and gives Sharp plenty of source resolution for cropping.
+ * Re-encodes as JPEG q92 so the upload payload is ~300-500KB per image.
+ *
+ * Returns a new File with the same name and lastModified, so the rest of the
+ * pipeline (FormData append, server-side filename inference) is unchanged.
+ */
+const MAX_UPLOAD_DIM = 2400;
+async function downscaleForUpload(file: File): Promise<File> {
+  // Tiny images skip the round-trip through canvas.
+  if (file.size < 1_500_000) return file;
+
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) return file;
+
+  const { width, height } = bitmap;
+  if (width <= MAX_UPLOAD_DIM && height <= MAX_UPLOAD_DIM) {
+    bitmap.close();
+    return file;
+  }
+
+  const scale = MAX_UPLOAD_DIM / Math.max(width, height);
+  const targetW = Math.round(width * scale);
+  const targetH = Math.round(height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bitmap.close();
+    return file;
+  }
+  ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+  bitmap.close();
+
+  const blob: Blob | null = await new Promise((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", 0.92),
+  );
+  if (!blob) return file;
+
+  // Keep the original filename so server-side filename inference still works,
+  // even though we re-encoded as JPEG. The server reads MIME from the blob,
+  // not the extension.
+  return new File([blob], file.name, {
+    type: "image/jpeg",
+    lastModified: file.lastModified,
+  });
+}
+
 export function StepImages() {
   const { state, dispatch } = useWizard();
   const [processing, setProcessing] = useState(false);
@@ -89,10 +145,13 @@ export function StepImages() {
       formData.append("draftId", state.draftId || "temp");
       formData.append("pubDate", pubDate);
 
-      // Append each image file + its metadata
+      // Downscale each File client-side first to stay under Vercel's 4.5MB
+      // body limit. Sharp gets a smaller-but-still-plenty source on the other
+      // side. Files that are already small pass through untouched.
       for (const img of state.images) {
         if (img.file) {
-          formData.append("images", img.file);
+          const compact = await downscaleForUpload(img.file);
+          formData.append("images", compact);
           formData.append("imageTypes", img.type);
           formData.append("imageFilenames", img.seoFilename || "image");
           formData.append("imagePositions", img.cropPosition || "centre");

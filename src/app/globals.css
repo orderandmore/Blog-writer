@@ -28,14 +28,19 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-accent: var(--accent);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Inter (matches orderandmore.com) for the body. Display font for headings.
+     Mono falls back to whatever the OS ships — friendlier than a geometric
+     code-editor face on technical bits (slugs, IDs). */
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv11", "ss03";
 }
 
 /* Scrollbar styling */
