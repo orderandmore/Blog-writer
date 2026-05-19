@@ -42,6 +42,10 @@ yarn-error.log*
 data/*
 !data/voice-samples.json
 
+# Local scratch directory for source images you're feeding to the wizard.
+# Keep these off GitHub — they're personal photos, not source code.
+/images/
+
 # vercel
 .vercel
 
