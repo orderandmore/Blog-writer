@@ -38,6 +38,9 @@ export const draftSchema = z.object({
 
 export type Draft = z.infer<typeof draftSchema>;
 
+// Kept only for the standalone /images one-off image tool, which still uses
+// a Sharp position hint instead of a full rect. The wizard flow uses
+// CropRect (below) for precise crop placement.
 export const CROP_POSITIONS = [
   "centre",
   "top",
@@ -48,6 +51,21 @@ export const CROP_POSITIONS = [
   "entropy",
 ] as const;
 export type CropPosition = (typeof CROP_POSITIONS)[number];
+
+/**
+ * Normalized crop rectangle. All four values are 0..1 fractions of the
+ * source image's natural dimensions, so the rect survives image rescaling
+ * (e.g. our 2400px upload downscale) and the display size in the wizard.
+ *
+ * On the server, the rect is converted to integer pixel coords against the
+ * uploaded source and applied with `sharp.extract().resize(...)`.
+ */
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 // Image metadata tracked per upload. `repoPath` is kept as a name for
 // historical reasons but is now just a deterministic key used for the scratch
@@ -65,7 +83,9 @@ export interface ImageMeta {
   processedSize: number;
   repoPath: string;
   processed: boolean;
-  cropPosition: CropPosition;
+  /** Optional user-selected crop. When omitted, server falls back to
+   * a centered cover-fit (Sharp's default behavior). */
+  cropRect?: CropRect;
   /** WP attachment ID assigned at publish time. */
   wpMediaId?: number;
   /** WP media source URL (the live, public URL). */

@@ -196,7 +196,9 @@ export function StepContent() {
         processedSize: 0,
         repoPath: "",
         processed: false,
-        cropPosition: "centre",
+        // cropRect is set by the CropSelector in StepImages once the image
+        // bitmap loads; undefined here just means "server falls back to
+        // centered cover-fit if the user skips that step entirely".
         file,
         thumbnailUrl: URL.createObjectURL(file),
         seoFilename: file.name

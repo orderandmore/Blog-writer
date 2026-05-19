@@ -8,7 +8,12 @@ import { useWizard } from "../WizardProvider";
 function previewPathFor(filename: string): string {
   return `/uploads/${filename}`;
 }
-import { CROP_POSITIONS, type CropPosition } from "@/lib/schema";
+import { CropSelector } from "@/components/CropSelector";
+
+// Featured image aspect matches her Kadence hero render. Body images are
+// square (1:1). These two values drive the CropSelector's aspect lock.
+const FEATURED_ASPECT = 1200 / 408;
+const BODY_ASPECT = 1;
 
 /**
  * Downscale an image client-side before upload. Vercel's serverless function
@@ -154,7 +159,10 @@ export function StepImages() {
           formData.append("images", compact);
           formData.append("imageTypes", img.type);
           formData.append("imageFilenames", img.seoFilename || "image");
-          formData.append("imagePositions", img.cropPosition || "centre");
+          formData.append(
+            "imageCropRects",
+            img.cropRect ? JSON.stringify(img.cropRect) : "null",
+          );
         }
       }
 
@@ -354,47 +362,65 @@ function ImageCard({
   void pubDate;
 
   return (
-    <div className="flex gap-4 p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-      {/* Thumbnail */}
-      <div className="w-24 h-24 rounded-lg overflow-hidden bg-[var(--border)] shrink-0">
-        {image.thumbnailUrl ? (
-          <img
-            src={image.thumbnailUrl}
-            alt={image.originalName}
-            className="w-full h-full object-cover"
-          />
+    <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-3">
+      {/* Header: filename + metadata + status */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm text-[var(--foreground)] truncate">
+            {image.originalName}
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            {image.originalWidth > 0
+              ? `${image.originalWidth}×${image.originalHeight}`
+              : "..."}{" "}
+            &middot; {(image.originalSize / 1024).toFixed(0)} KB &middot;{" "}
+            {image.type === "featured" ? "Featured (2.95:1)" : "Body (1:1)"}
+          </p>
+        </div>
+        {image.processed ? (
+          <span className="text-xs px-2 py-0.5 rounded bg-[var(--success)]/20 text-[var(--success)] shrink-0">
+            {image.processedWidth}×{image.processedHeight} &middot;{" "}
+            {(image.processedSize / 1024).toFixed(0)} KB
+          </span>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-[var(--muted)] text-xs">
-            No preview
-          </div>
+          <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)] shrink-0">
+            Pending
+          </span>
         )}
       </div>
 
-      {/* Details */}
-      <div className="flex-1 min-w-0 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-sm text-[var(--foreground)] truncate">
-              {image.originalName}
-            </p>
-            <p className="text-xs text-[var(--muted)]">
-              {image.originalWidth > 0
-                ? `${image.originalWidth}x${image.originalHeight}`
-                : "..."}{" "}
-              &middot; {(image.originalSize / 1024).toFixed(0)} KB
-            </p>
-          </div>
-          {image.processed ? (
-            <span className="text-xs px-2 py-0.5 rounded bg-[var(--success)]/20 text-[var(--success)] shrink-0">
-              {image.processedWidth}x{image.processedHeight} &middot;{" "}
-              {(image.processedSize / 1024).toFixed(0)} KB
-            </span>
+      {/* Crop selector — drag to pick the exact slice */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="shrink-0">
+          {image.thumbnailUrl ? (
+            <CropSelector
+              src={image.thumbnailUrl}
+              aspect={image.type === "featured" ? FEATURED_ASPECT : BODY_ASPECT}
+              value={image.cropRect}
+              readOnly={image.processed}
+              onChange={(rect) =>
+                dispatch({
+                  type: "UPDATE_IMAGE",
+                  id: image.id,
+                  updates: { cropRect: rect },
+                })
+              }
+              maxWidth={image.type === "featured" ? 420 : 280}
+            />
           ) : (
-            <span className="text-xs px-2 py-0.5 rounded bg-[var(--border)] text-[var(--muted)] shrink-0">
-              Pending
-            </span>
+            <div className="w-40 h-40 rounded-lg bg-[var(--border)] flex items-center justify-center text-[var(--muted)] text-xs">
+              No preview
+            </div>
           )}
+          <p className="text-[10px] text-[var(--muted)] mt-1">
+            {image.processed
+              ? "Already processed — re-upload to recrop"
+              : "Drag corners to resize, click and drag to move"}
+          </p>
         </div>
+
+      {/* Right column: filename + details */}
+      <div className="flex-1 min-w-0 space-y-2">
 
         {/* SEO filename input */}
         <div>
@@ -438,86 +464,7 @@ function ImageCard({
           </p>
         </div>
 
-        {/* Crop position picker */}
-        <CropPositionPicker
-          value={image.cropPosition || "centre"}
-          onChange={(pos) =>
-            dispatch({
-              type: "UPDATE_IMAGE",
-              id: image.id,
-              updates: { cropPosition: pos },
-            })
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-function CropPositionPicker({
-  value,
-  onChange,
-}: {
-  value: CropPosition;
-  onChange: (pos: CropPosition) => void;
-}) {
-  // 3x3 grid maps to Sharp's directional values; centre = middle cell.
-  // Diagonals fall back to the nearest cardinal direction Sharp supports.
-  const cells: Array<{ pos: CropPosition; label: string }> = [
-    { pos: "top", label: "↖" },
-    { pos: "top", label: "↑" },
-    { pos: "top", label: "↗" },
-    { pos: "left", label: "←" },
-    { pos: "centre", label: "•" },
-    { pos: "right", label: "→" },
-    { pos: "bottom", label: "↙" },
-    { pos: "bottom", label: "↓" },
-    { pos: "bottom", label: "↘" },
-  ];
-
-  return (
-    <div>
-      <label className="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">
-        Crop From
-      </label>
-      <div className="flex items-center gap-2">
-        <div className="grid grid-cols-3 gap-0.5 w-fit">
-          {cells.map((cell, i) => {
-            const active = value === cell.pos;
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => onChange(cell.pos)}
-                title={cell.pos}
-                className={`w-5 h-5 rounded text-[10px] flex items-center justify-center transition-colors ${
-                  active
-                    ? "bg-[var(--primary)] text-white"
-                    : "bg-[var(--border)] text-[var(--muted)] hover:bg-[var(--border)]/70"
-                }`}
-              >
-                {cell.label}
-              </button>
-            );
-          })}
         </div>
-        <select
-          value={
-            (CROP_POSITIONS as readonly string[]).includes(value) ? value : "centre"
-          }
-          onChange={(e) => onChange(e.target.value as CropPosition)}
-          className="px-2 py-1 rounded bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] text-xs focus:outline-none focus:border-[var(--primary)]"
-        >
-          {CROP_POSITIONS.map((pos) => (
-            <option key={pos} value={pos}>
-              {pos === "attention"
-                ? "Smart (attention)"
-                : pos === "entropy"
-                  ? "Smart (entropy)"
-                  : pos.charAt(0).toUpperCase() + pos.slice(1)}
-            </option>
-          ))}
-        </select>
       </div>
     </div>
   );

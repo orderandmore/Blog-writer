@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { put, head, del } from "@vercel/blob";
-import type { CropPosition } from "./schema";
+import type { CropRect } from "./schema";
 
 /**
  * Image pipeline. Variant dimensions tuned for Patty's Kadence theme on
@@ -13,8 +13,13 @@ import type { CropPosition } from "./schema";
  *   - Social wide JPG: 1200×630 — Buffer (Facebook, LinkedIn) + GMB
  *   - Social square JPG: 1080×1080 — Buffer (Instagram)
  *
- * Scratch storage moved to Vercel Blob since Vercel's serverless filesystem
- * is read-only except for /tmp (which is ephemeral). Local dev still works
+ * Each processor accepts an optional `CropRect` (normalized 0..1 fractions of
+ * the source image). When provided, the rect is extracted first, then the
+ * extracted region is resized to the target dimensions. When omitted, falls
+ * back to a centered cover-fit on the full source.
+ *
+ * Scratch storage is on Vercel Blob since Vercel's serverless filesystem is
+ * read-only except for /tmp (which is ephemeral). Local dev still works
  * against the same Blob — set BLOB_READ_WRITE_TOKEN.
  */
 
@@ -26,17 +31,45 @@ export interface ProcessedImage {
   format: string;
 }
 
-/** Featured image: 1200×408 (≈2.95:1), WebP q85, cover crop, strip EXIF.
- * Matches the Kadence hero render aspect on orderandmore.com. */
+/**
+ * Apply the user's crop rect (if any) to a Sharp pipeline, then resize-cover
+ * to the target dimensions. Clamps the rect to source bounds so an off-by-one
+ * doesn't cause Sharp to throw.
+ */
+async function buildCroppedPipeline(
+  input: Buffer,
+  cropRect: CropRect | undefined,
+  targetW: number,
+  targetH: number,
+): Promise<sharp.Sharp> {
+  let pipeline = sharp(input);
+  if (cropRect) {
+    const meta = await sharp(input).metadata();
+    const srcW = meta.width ?? 0;
+    const srcH = meta.height ?? 0;
+    if (srcW > 0 && srcH > 0) {
+      const left = Math.max(0, Math.min(srcW - 1, Math.round(cropRect.x * srcW)));
+      const top = Math.max(0, Math.min(srcH - 1, Math.round(cropRect.y * srcH)));
+      let width = Math.max(1, Math.round(cropRect.width * srcW));
+      let height = Math.max(1, Math.round(cropRect.height * srcH));
+      width = Math.min(width, srcW - left);
+      height = Math.min(height, srcH - top);
+      if (width > 0 && height > 0) {
+        pipeline = pipeline.extract({ left, top, width, height });
+      }
+    }
+  }
+  return pipeline.resize(targetW, targetH, { fit: "cover", position: "centre" });
+}
+
+/** Featured image: 1200×408 (≈2.95:1), WebP q85.
+ * Uses cropRect when provided; matches Kadence hero render aspect. */
 export async function processFeaturedImage(
   input: Buffer,
-  position: CropPosition = "centre",
+  cropRect?: CropRect,
 ): Promise<ProcessedImage> {
-  const result = await sharp(input)
-    .resize(1200, 408, { fit: "cover", position })
-    .webp({ quality: 85 })
-    .toBuffer({ resolveWithObject: true });
-
+  const pipeline = await buildCroppedPipeline(input, cropRect, 1200, 408);
+  const result = await pipeline.webp({ quality: 85 }).toBuffer({ resolveWithObject: true });
   return {
     buffer: result.data,
     width: result.info.width,
@@ -46,25 +79,13 @@ export async function processFeaturedImage(
   };
 }
 
-/** Body image: 1200×1200 square cover (or aspect-preserving), WebP q85. */
+/** Body image: 1200×1200 square cover, WebP q85. */
 export async function processBodyImage(
   input: Buffer,
-  preserveAspect = false,
-  position: CropPosition = "centre",
+  cropRect?: CropRect,
 ): Promise<ProcessedImage> {
-  const pipeline = sharp(input);
-  if (preserveAspect) {
-    pipeline.resize(1200, undefined, {
-      fit: "inside",
-      withoutEnlargement: true,
-    });
-  } else {
-    pipeline.resize(1200, 1200, { fit: "cover", position });
-  }
-  const result = await pipeline
-    .webp({ quality: 85 })
-    .toBuffer({ resolveWithObject: true });
-
+  const pipeline = await buildCroppedPipeline(input, cropRect, 1200, 1200);
+  const result = await pipeline.webp({ quality: 85 }).toBuffer({ resolveWithObject: true });
   return {
     buffer: result.data,
     width: result.info.width,
@@ -74,16 +95,17 @@ export async function processBodyImage(
   };
 }
 
-/** Social wide JPG: 1200×630 (Facebook, GMB) — Buffer-fed. */
+/** Social wide JPG: 1200×630 (Facebook, LinkedIn, GMB).
+ * Reuses the featured cropRect — if the user picked a focal slice for the
+ * hero, social variants stay centered on that same region. The aspect
+ * mismatch (2.95:1 → 1.91:1) means a small additional center-crop happens,
+ * which Sharp handles via the resize cover-fit at the end. */
 export async function processSocialJpgImage(
   input: Buffer,
-  position: CropPosition = "centre",
+  cropRect?: CropRect,
 ): Promise<ProcessedImage> {
-  const result = await sharp(input)
-    .resize(1200, 630, { fit: "cover", position })
-    .jpeg({ quality: 88 })
-    .toBuffer({ resolveWithObject: true });
-
+  const pipeline = await buildCroppedPipeline(input, cropRect, 1200, 630);
+  const result = await pipeline.jpeg({ quality: 88 }).toBuffer({ resolveWithObject: true });
   return {
     buffer: result.data,
     width: result.info.width,
@@ -93,16 +115,13 @@ export async function processSocialJpgImage(
   };
 }
 
-/** Social square JPG: 1080×1080 (Instagram) — Buffer-fed. */
+/** Social square JPG: 1080×1080 (Instagram). */
 export async function processSocialSquareImage(
   input: Buffer,
-  position: CropPosition = "centre",
+  cropRect?: CropRect,
 ): Promise<ProcessedImage> {
-  const result = await sharp(input)
-    .resize(1080, 1080, { fit: "cover", position })
-    .jpeg({ quality: 88 })
-    .toBuffer({ resolveWithObject: true });
-
+  const pipeline = await buildCroppedPipeline(input, cropRect, 1080, 1080);
+  const result = await pipeline.jpeg({ quality: 88 }).toBuffer({ resolveWithObject: true });
   return {
     buffer: result.data,
     width: result.info.width,
@@ -124,11 +143,6 @@ export async function getImageInfo(input: Buffer) {
 }
 
 // ---------- Scratch storage (Vercel Blob) ----------
-//
-// Key namespace: `scratch/{draftId}/{imageId}`. Blob stores these as
-// addByRandomSuffix=false so the key is stable across reads, and access=public
-// so the wizard's <img> tags can load preview thumbnails directly without
-// going through a signed-URL flow.
 
 function scratchKey(draftId: string, imageId: string): string {
   return `scratch/${draftId}/${imageId}`;
@@ -140,15 +154,10 @@ export async function saveScratchImage(
   buffer: Buffer,
 ): Promise<string> {
   const key = scratchKey(draftId, imageId);
-  // put() writes; the returned `url` is the public CDN URL we use for
-  // <img src> in the wizard and to feed Buffer's `image.url` asset field.
   const blob = await put(key, buffer, {
     access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
-    // Sharp-produced buffers are already content-typed by extension hint in
-    // the imageId (...-social.jpg, ...-processed for webp, etc.). Default
-    // mime detection by Vercel Blob handles unrecognized cases.
   });
   return blob.url;
 }
@@ -159,7 +168,6 @@ export async function readScratchImage(
 ): Promise<Buffer | null> {
   const key = scratchKey(draftId, imageId);
   try {
-    // head() resolves to the metadata + url; we then GET the public URL.
     const info = await head(key);
     if (!info?.url) return null;
     const res = await fetch(info.url);
@@ -184,9 +192,6 @@ export async function scratchImageUrl(
 }
 
 export async function cleanupScratch(draftId: string): Promise<void> {
-  // Vercel Blob doesn't support prefix-deletion directly; the @vercel/blob
-  // package exposes `list()` + `del()`. The list call can be paginated but
-  // 50 entries is plenty for one draft's variants.
   const { list } = await import("@vercel/blob");
   const { blobs } = await list({ prefix: `scratch/${draftId}/`, limit: 100 });
   if (blobs.length === 0) return;

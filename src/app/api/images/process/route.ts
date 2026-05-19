@@ -8,18 +8,32 @@ import {
   saveScratchImage,
 } from "@/lib/images";
 import { sanitizeImageName } from "@/lib/slug";
-import {
-  CROP_POSITIONS,
-  type CropPosition,
-  type ImageMeta,
-} from "@/lib/schema";
+import type { CropRect, ImageMeta } from "@/lib/schema";
 import { createDraft } from "@/lib/db";
 
-function coercePosition(raw: string | undefined): CropPosition {
-  if (raw && (CROP_POSITIONS as readonly string[]).includes(raw)) {
-    return raw as CropPosition;
+function parseCropRect(raw: string | undefined): CropRect | undefined {
+  if (!raw || raw === "null" || raw === "undefined") return undefined;
+  try {
+    const v = JSON.parse(raw) as Partial<CropRect>;
+    if (
+      typeof v.x === "number" &&
+      typeof v.y === "number" &&
+      typeof v.width === "number" &&
+      typeof v.height === "number" &&
+      v.width > 0 &&
+      v.height > 0
+    ) {
+      return {
+        x: Math.max(0, Math.min(1, v.x)),
+        y: Math.max(0, Math.min(1, v.y)),
+        width: Math.max(0, Math.min(1, v.width)),
+        height: Math.max(0, Math.min(1, v.height)),
+      };
+    }
+  } catch {
+    // Fall through — undefined means server uses centered default
   }
-  return "centre";
+  return undefined;
 }
 
 export async function POST(request: NextRequest) {
@@ -33,7 +47,7 @@ export async function POST(request: NextRequest) {
     const imageFiles = formData.getAll("images") as File[];
     const imageTypes = formData.getAll("imageTypes") as string[];
     const imageFilenames = formData.getAll("imageFilenames") as string[];
-    const imagePositions = formData.getAll("imagePositions") as string[];
+    const imageCropRects = formData.getAll("imageCropRects") as string[];
 
     if (imageFiles.length === 0) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 });
@@ -44,7 +58,7 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < imageFiles.length; i++) {
       const file = imageFiles[i];
       const type = (imageTypes[i] || "body") as "featured" | "body";
-      const cropPosition = coercePosition(imagePositions[i]);
+      const cropRect = parseCropRect(imageCropRects[i]);
       const buffer = Buffer.from(await file.arrayBuffer());
       const imgId = `img-${i}`;
 
@@ -57,24 +71,22 @@ export async function POST(request: NextRequest) {
       const cleanName = seoName
         ? `${seoName}.webp`
         : sanitizeImageName(file.name, slug);
-      // repoPath is kept as a stable display value but is NOT the publish
-      // path anymore — WP returns its own attachment URL on upload.
       const repoPath = `/uploads/${cleanName}`;
 
       let processed;
       if (type === "featured") {
-        processed = await processFeaturedImage(buffer, cropPosition);
+        processed = await processFeaturedImage(buffer, cropRect);
 
         // Buffer-fed JPG variants. Stay in scratch, never uploaded to WP.
-        // Wide (1200×630) covers Facebook, LinkedIn, GMB.
-        // Square (1080×1080) covers Instagram.
-        const socialJpg = await processSocialJpgImage(buffer, cropPosition);
+        // Reuse the same cropRect so social variants stay centered on the
+        // user's focal slice (further cover-cropped to their own aspect).
+        const socialJpg = await processSocialJpgImage(buffer, cropRect);
         await saveScratchImage(draftId, `${imgId}-social.jpg`, socialJpg.buffer);
 
-        const socialSquare = await processSocialSquareImage(buffer, cropPosition);
+        const socialSquare = await processSocialSquareImage(buffer, cropRect);
         await saveScratchImage(draftId, `${imgId}-social-square.jpg`, socialSquare.buffer);
       } else {
-        processed = await processBodyImage(buffer, false, cropPosition);
+        processed = await processBodyImage(buffer, cropRect);
       }
 
       await saveScratchImage(draftId, `${imgId}-processed`, processed.buffer);
@@ -92,7 +104,7 @@ export async function POST(request: NextRequest) {
         processedSize: processed.size,
         repoPath,
         processed: true,
-        cropPosition,
+        cropRect,
       });
     }
 
