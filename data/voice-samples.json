@@ -1,0 +1,41 @@
+{
+  "extractedAt": "2026-05-19",
+  "source": "https://orderandmore.com/wp-json/wp/v2/posts",
+  "purpose": "Few-shot voice anchors for AI prompts. The articleDraft and articleRevise prompts may inject 2-3 short excerpts inline to ground generation in Patty's real cadence.",
+  "samples": [
+    {
+      "id": 2102,
+      "title": "Decluttering Paperwork: 6 Tips for Going Paperless in Littleton, Colorado",
+      "slug": "decluttering-paperwork-6-tips-for-going-paperless-in-littleton-colorado",
+      "excerpts": {
+        "opener": "Everyone has different thoughts about paper vs. computerized records, also known as digitizing. I have always been of the mindset that less paperwork is better. However, I do caution you to get advice on what to keep and what to discard from your lawyer and your accountant. The individual decluttering is always responsible for the decision-making, not the organizer.",
+        "midSectionAside": "3. Taxes – Nope, that's a trick, lol! Confirm with your accountant, but you need to keep taxes for at least the past 7 to 10 years. Keep them in a safe or fireproof place. Usually beyond that 7-10 year mark, it's fine to shred them.",
+        "personalAnecdote": "When I did this a few years ago, I threw out 7/8 of the cards and letters I had! I was tired of storing things that I don't look at except once every decade.",
+        "closingCta": "Hopefully these six paper decluttering tips and tricks will help you on your journey to a paperless (or nearly paperless) office space! If you need help organizing paperwork or digitizing documents in Littleton, Colorado, professional organizing services can guide you through the process and help you create systems that work for your lifestyle."
+      }
+    },
+    {
+      "id": 2020,
+      "title": "Five Space-Saving & Organization Tips for New Homeowners",
+      "slug": "five-space-saving-organization-tips-for-new-homeowners",
+      "excerpts": {
+        "opener": "When my clients move into their first homes in Littleton, the #1 complaint I hear is: \"I have too much stuff and not enough space!\" Whether you're in a cozy Denver condo or downsizing to a smaller home, I've got you covered. Here are five game-changing tips that will help you maximize every square inch!",
+        "personalAnecdote": "When my husband and I first bought our new house, we were shopping at Costco and I really wanted an Instant Pot. Next to the Instant Pot was a Ninja Foodi and after much debate, my husband convinced me that we should buy a Ninja Foodi instead of the Instant Pot. Best. Decision. Ever.",
+        "specificNumbers": "This one kitchen appliance saves me from having 6 to 8 different kitchen appliances taking up precious counter and cabinet space! We're talking about saving approximately 8 cubic feet of cabinet space—that's huge in a small kitchen.",
+        "closingCta": "As a professional organizer serving Littleton and the Denver area, I love helping new homeowners create homes that feel spacious, functional, and peaceful—no matter the square footage. Contact me today to schedule a consultation and create a customized space-saving plan for your home!"
+      }
+    },
+    {
+      "id": 2064,
+      "title": "Why Storage Units Are a Waste of Money (And What to Do Instead)",
+      "slug": "why-storage-units-are-a-waste-of-money-and-what-to-do-instead",
+      "excerpts": {
+        "opener": "The bottom line is that many of us own too much stuff. Then we decide we don't have enough room in our house and we go pay for a storage unit. As a professional organizer in Colorado, I can tell you I have done that before, and I highly discourage it.",
+        "longPersonalAnecdote": "I'll get off my soapbox now and return to the storage unit issue. When I got divorced and moved to Colorado 15 years ago, I decided to pack up my house and put it in a storage unit. A year later, I had not retrieved or needed anything in that storage unit, and it was too expensive to move everything in the house across the country. I decided to throw a garage sale from the storage unit because it was unnecessary to take much back with me.",
+        "emotionalReflection": "It was the most freeing feeling to empty that storage unit! I don't remember making much off of the sale, but it didn't matter! It made space in my budget to focus on more important things, and a weight lifted off my shoulders from decluttering my life. It was a mental decluttering of my divorce/prior relationship and a physical decluttering of the storage space.",
+        "specificNumbers": "The average American spends $90-$150 per month on a storage unit, which adds up to over $1,000 per year.",
+        "closingCta": "If you're ready to let go of your storage unit and reclaim your budget and peace of mind, professional organizing services can help. As a professional organizer in Littleton, Colorado, I help clients declutter, make decisions about what to keep, and create organized systems in their homes. Contact me today to start your decluttering journey!"
+      }
+    }
+  ]
+}
