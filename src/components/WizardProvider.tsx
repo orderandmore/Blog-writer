@@ -97,6 +97,7 @@ export function WizardProvider({ children }: { children: ReactNode }) {
             socialCopy: draft.social_copy ?? null,
             postedDestinations: draft.posted_destinations ?? [],
             bufferSubmissions: draft.buffer_submissions ?? {},
+            socialReview: draft.social_review ?? {},
             currentStep: draft.current_step ?? 1,
             metadataAiDone: Boolean(postMeta.description),
             publishStatus:
@@ -208,6 +209,7 @@ function buildPayload(s: WizardState) {
     images,
     social_copy: s.socialCopy,
     posted_destinations: s.postedDestinations,
+    social_review: s.socialReview,
     current_step: s.currentStep,
     topic_id: s.topicId,
     topic_notes: s.topicNotes,
