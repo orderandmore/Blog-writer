@@ -217,6 +217,27 @@ export async function uploadMedia(
   return { id: result.id, sourceUrl: result.source_url };
 }
 
+export interface WPPostState {
+  id: number;
+  status: string;
+  link: string;
+  /** GMT publish/scheduled time, "YYYY-MM-DDTHH:MM:SS" (no tz designator). */
+  date_gmt?: string;
+}
+
+/**
+ * Fetch a post's current status + scheduled time. Uses auth + context=edit so
+ * non-public posts (future/draft) are returned, not just published ones. Used
+ * to decide Buffer timing at (re-)send: queue if live, schedule after date_gmt
+ * if still scheduled.
+ */
+export async function getPost(id: number): Promise<WPPostState> {
+  return wpFetch<WPPostState>(
+    `/wp/v2/posts/${id}?context=edit&_fields=id,status,link,date_gmt`,
+    { auth: true },
+  );
+}
+
 export async function createPost(
   input: CreatePostInput,
 ): Promise<CreatedPost> {
