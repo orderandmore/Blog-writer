@@ -364,8 +364,9 @@ export function StepReview() {
               </button>
               <p className="text-xs text-[var(--muted)] flex-1 min-w-[12rem]">
                 WordPress auto-publishes at this time (your site&rsquo;s
-                timezone). Approved socials are scheduled in Buffer starting an
-                hour later, after the article is live, staggered 30 min apart.
+                timezone). Approved socials are scheduled in Buffer about a day
+                later, so the article is safely live first, staggered 30 min
+                apart.
               </p>
             </div>
           </div>
