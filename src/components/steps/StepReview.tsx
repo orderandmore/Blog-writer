@@ -315,6 +315,10 @@ export function StepReview() {
               bufferError={undefined}
               onResend={() => {}}
               sending={publishing}
+              manualPosted={state.postedDestinations.includes(dest.id)}
+              onToggleManualPosted={() =>
+                dispatch({ type: "TOGGLE_POSTED_DESTINATION", destId: dest.id })
+              }
               featuredImg={featuredImg}
               featuredBase={featuredBase}
               draftId={state.draftId}
@@ -615,6 +619,8 @@ function ReviewCard({
   bufferError,
   onResend,
   sending,
+  manualPosted,
+  onToggleManualPosted,
   featuredImg,
   featuredBase,
   draftId,
@@ -633,6 +639,9 @@ function ReviewCard({
   bufferError: string | undefined;
   onResend: () => void;
   sending: boolean;
+  /** Manual (non-Buffer) destinations only: GMB "mark as posted" state. */
+  manualPosted?: boolean;
+  onToggleManualPosted?: () => void;
   featuredImg: ClientImage | undefined;
   featuredBase: string;
   draftId: string | null;
@@ -737,11 +746,25 @@ function ReviewCard({
         />
       )}
 
-      {/* GMB / manual note */}
+      {/* GMB / manual note + "mark as posted" (counts toward the dashboard
+          syndication tally, since manual destinations never hit Buffer). */}
       {!isBuffer && (
-        <p className="text-[10px] text-[var(--muted)]">
-          Post manually to {dest.name} using the copy button above.
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] text-[var(--muted)]">
+            Post manually to {dest.name} using the copy button above, then mark
+            it done.
+          </p>
+          <button
+            onClick={onToggleManualPosted}
+            className={`text-xs px-2.5 py-1 rounded shrink-0 ${
+              manualPosted
+                ? "bg-[var(--success)] text-white"
+                : "bg-[var(--success)]/15 text-[var(--success)] hover:bg-[var(--success)]/25"
+            }`}
+          >
+            {manualPosted ? "Posted ✓" : "Mark as posted"}
+          </button>
+        </div>
       )}
 
       {dest.hasSocialImage && (
