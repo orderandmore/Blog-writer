@@ -13,12 +13,6 @@ import type { SocialCopyBundle } from "@/lib/schema";
 import type { ReviewStatus, ClientImage } from "@/lib/wizard-store";
 import type { BufferMode } from "@/lib/buffer";
 
-// Buffer scheduling, when the WP article is itself scheduled: fire the first
-// social post this long *after* the article goes live (so the link resolves),
-// then stagger each additional channel so they don't all post at once.
-const BUFFER_LEAD_MS = 60 * 60 * 1000; // 1 hour after the article is live
-const BUFFER_STAGGER_MS = 30 * 60 * 1000; // 30 min between channels
-
 export function StepReview() {
   const { state, dispatch } = useWizard();
   const [publishing, setPublishing] = useState(false);
@@ -26,6 +20,12 @@ export function StepReview() {
   // Per-destination Buffer errors collected during the orchestrated submit, so
   // one channel failing doesn't hide the others' success.
   const [bufferErrors, setBufferErrors] = useState<Record<string, string>>({});
+  // How each channel actually landed in Buffer ("queue" | "scheduled" |
+  // "draft"), as resolved server-side from the live WP status. Drives the
+  // status label so it reflects what really happened, not a stale guess.
+  const [bufferModes, setBufferModes] = useState<Record<string, BufferMode>>(
+    {},
+  );
   // Scheduling: a local datetime-local value (browser local time). Defaults
   // to ~tomorrow 9am so the picker isn't empty. Only used for "Schedule".
   const [scheduledFor, setScheduledFor] = useState<string>(defaultScheduleLocal);
@@ -79,41 +79,12 @@ export function StepReview() {
     dispatch({ type: "SET_SOCIAL_REVIEW", destId, status });
   }
 
-  function bufferModeFor(
-    action: "publish" | "draft" | "future",
-  ): BufferMode {
-    return action === "publish"
-      ? "queue"
-      : action === "future"
-        ? "scheduled"
-        : "draft";
-  }
-
-  /** Submit one approved destination to Buffer. `index` controls the staggered
-   * schedule when mode === "scheduled". Errors are collected per-destination
-   * rather than thrown, so a single failure doesn't abort the rest. */
-  async function submitOneBuffer(
-    dest: Destination,
-    mode: BufferMode,
-    index: number,
-    anchorGmt: string | null,
-  ) {
+  /** Submit one destination to Buffer. The server resolves mode + timing from
+   * the live WP post status, so we only pass a stagger index for spacing.
+   * Errors are collected per-destination rather than thrown, so one failure
+   * doesn't abort the rest. */
+  async function submitOneBuffer(dest: Destination, staggerIndex: number) {
     if (!state.draftId) return;
-    const text = copyOf(dest);
-
-    // For a scheduled post, fire the social AFTER the article is live. We
-    // anchor to WP's authoritative go-live time (anchorGmt) rather than the
-    // picker value, and clamp to "now" so a re-send of an already-live post
-    // still lands in the future (Buffer rejects past times).
-    let scheduledAt: string | undefined;
-    if (mode === "scheduled") {
-      const anchorMs = anchorGmt ? new Date(anchorGmt).getTime() : NaN;
-      const baseMs =
-        (Number.isNaN(anchorMs) ? Date.now() : Math.max(anchorMs, Date.now())) +
-        BUFFER_LEAD_MS;
-      scheduledAt = new Date(baseMs + index * BUFFER_STAGGER_MS).toISOString();
-    }
-
     try {
       const res = await fetch("/api/syndicate/buffer", {
         method: "POST",
@@ -121,13 +92,15 @@ export function StepReview() {
         body: JSON.stringify({
           draftId: state.draftId,
           destinationId: dest.id,
-          text,
-          mode,
-          scheduledAt,
+          text: copyOf(dest),
+          staggerIndex,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Buffer submission failed");
+      if (data.mode) {
+        setBufferModes((prev) => ({ ...prev, [dest.id]: data.mode }));
+      }
       dispatch({
         type: "RECORD_BUFFER_SUBMISSION",
         destId: dest.id,
@@ -190,11 +163,10 @@ export function StepReview() {
       });
 
       // WordPress is live/scheduled/drafted — now fan out to Buffer for every
-      // approved channel, in the matching mode, anchored to WP's real go-live.
-      const mode = bufferModeFor(action);
-      const anchor: string | null = result.wpDateGmt ?? null;
+      // approved channel. The server reads WP's actual status to pick the mode
+      // and the time; we just pass the stagger slot.
       for (let i = 0; i < approvedDestinations.length; i++) {
-        await submitOneBuffer(approvedDestinations[i], mode, i, anchor);
+        await submitOneBuffer(approvedDestinations[i], i);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Publish failed");
@@ -205,16 +177,15 @@ export function StepReview() {
   }
 
   // (Re-)send a single destination to Buffer after publish. Works for failed
-  // sends, for channels that were skipped at publish time, and for re-pushing
-  // one that already went through. The Buffer mode + timing follow WP's actual
-  // status/go-live, persisted on the draft, so it stays correct across reloads.
+  // sends, for channels skipped at publish time, and for re-pushing one that
+  // already went through. The server re-checks the live WP status each time, so
+  // an already-published article queues while a still-scheduled one schedules
+  // after its go-live — no reliance on stale client state.
   async function resendBuffer(dest: Destination) {
-    const wpStatus = state.wpStatus ?? resultStatus ?? "publish";
-    const mode = bufferModeFor(wpStatus as "publish" | "draft" | "future");
     const index = bufferDestinations.findIndex((d) => d.id === dest.id);
     setPublishing(true);
     try {
-      await submitOneBuffer(dest, mode, Math.max(0, index), state.wpScheduledGmt);
+      await submitOneBuffer(dest, Math.max(0, index));
     } finally {
       setPublishing(false);
     }
@@ -307,6 +278,7 @@ export function StepReview() {
             onReset={() => setReview(dest.id, null)}
             isPublished={isPublished}
             wpStatus={state.wpStatus ?? resultStatus}
+            resolvedMode={bufferModes[dest.id]}
             submission={state.bufferSubmissions[dest.id]}
             bufferError={bufferErrors[dest.id]}
             onResend={() => resendBuffer(dest)}
@@ -637,6 +609,7 @@ function ReviewCard({
   onReset,
   isPublished,
   wpStatus,
+  resolvedMode,
   submission,
   bufferError,
   onResend,
@@ -654,6 +627,7 @@ function ReviewCard({
   onReset: () => void;
   isPublished: boolean;
   wpStatus: string | null;
+  resolvedMode?: BufferMode;
   submission: { bufferPostId: string; submittedAt: string } | undefined;
   bufferError: string | undefined;
   onResend: () => void;
@@ -754,6 +728,7 @@ function ReviewCard({
           submission={submission}
           reviewStatus={reviewStatus}
           wpStatus={wpStatus}
+          resolvedMode={resolvedMode}
           bufferError={bufferError}
           onResend={onResend}
           sending={sending}
@@ -785,6 +760,7 @@ function BufferStatus({
   submission,
   reviewStatus,
   wpStatus,
+  resolvedMode,
   bufferError,
   onResend,
   sending,
@@ -794,15 +770,21 @@ function BufferStatus({
   submission: { bufferPostId: string; submittedAt: string } | undefined;
   reviewStatus: ReviewStatus | undefined;
   wpStatus: string | null;
+  resolvedMode?: BufferMode;
   bufferError: string | undefined;
   onResend: () => void;
   sending: boolean;
   disabled: boolean;
 }) {
+  // Prefer the mode the server actually used; fall back to the WP status only
+  // before a (re-)send has reported back.
+  const effectiveMode: BufferMode =
+    resolvedMode ??
+    (wpStatus === "future" ? "scheduled" : wpStatus === "draft" ? "draft" : "queue");
   const verb =
-    wpStatus === "future"
+    effectiveMode === "scheduled"
       ? "Scheduled in Buffer"
-      : wpStatus === "draft"
+      : effectiveMode === "draft"
         ? "Saved as Buffer draft"
         : "Queued in Buffer";
 
