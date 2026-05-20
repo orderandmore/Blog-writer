@@ -104,6 +104,8 @@ export function WizardProvider({ children }: { children: ReactNode }) {
               draft.status === "published" ? "published" : "idle",
             wpPostId: (draft.wp_post_id as number) ?? null,
             wpLink: (draft.wp_link as string) ?? null,
+            wpStatus: (draft.wp_status as string) ?? null,
+            wpScheduledGmt: (draft.wp_scheduled_gmt as string) ?? null,
           },
         });
       })

@@ -56,6 +56,11 @@ export interface WizardState {
   wpPostId: number | null;
   wpLink: string | null;
   wpEditUrl: string | null;
+  /** WP status returned by the publish call: "publish" | "draft" | "future". */
+  wpStatus: string | null;
+  /** WP's authoritative go-live time (UTC). Buffer scheduling anchors to this
+   * so socials always land after the article is live, even on a later re-send. */
+  wpScheduledGmt: string | null;
   postedDestinations: string[];
   bufferSubmissions: Record<string, { bufferPostId: string; submittedAt: string }>;
   /** Step-5 approve/skip decisions, keyed by destination id. */
@@ -88,6 +93,8 @@ export type WizardAction =
       wpPostId?: number;
       wpLink?: string;
       wpEditUrl?: string;
+      wpStatus?: string | null;
+      wpScheduledGmt?: string | null;
     }
   | { type: "TOGGLE_POSTED_DESTINATION"; destId: string }
   | {
@@ -124,6 +131,8 @@ export const initialWizardState: WizardState = {
   wpPostId: null,
   wpLink: null,
   wpEditUrl: null,
+  wpStatus: null,
+  wpScheduledGmt: null,
   postedDestinations: [],
   bufferSubmissions: {},
   socialReview: {},
@@ -200,6 +209,8 @@ export function wizardReducer(
         wpPostId: action.wpPostId ?? state.wpPostId,
         wpLink: action.wpLink ?? state.wpLink,
         wpEditUrl: action.wpEditUrl ?? state.wpEditUrl,
+        wpStatus: action.wpStatus ?? state.wpStatus,
+        wpScheduledGmt: action.wpScheduledGmt ?? state.wpScheduledGmt,
       };
 
     case "RECORD_BUFFER_SUBMISSION":

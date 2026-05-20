@@ -62,6 +62,7 @@ export async function ensureSchema(): Promise<void> {
         wp_post_id INTEGER,
         wp_link TEXT,
         wp_status TEXT,
+        wp_scheduled_gmt TEXT,
         last_synced_at TIMESTAMPTZ
       );
 
@@ -104,6 +105,7 @@ export async function ensureSchema(): Promise<void> {
       "ALTER TABLE drafts ADD COLUMN IF NOT EXISTS wp_status TEXT",
       "ALTER TABLE drafts ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ",
       "ALTER TABLE drafts ADD COLUMN IF NOT EXISTS social_review TEXT",
+      "ALTER TABLE drafts ADD COLUMN IF NOT EXISTS wp_scheduled_gmt TEXT",
     ];
     for (const sql of migrations) {
       try {
@@ -162,6 +164,7 @@ const DRAFT_COLUMNS = new Set([
   "wp_post_id",
   "wp_link",
   "wp_status",
+  "wp_scheduled_gmt",
 ]);
 
 export async function updateDraft(
