@@ -17,7 +17,7 @@ Return a JSON object with these exact keys:
 
 {
   "description": "A 150-160 character meta description. Summarize the key value to the reader. Do not open with 'Discover' or 'Learn how'. Use specific facts from the article.",
-  "seoTitle": "A 50-60 character SEO title ending with ' | Virtue Solar'. Front-load the primary keyword. Be specific, not generic.",
+  "seoTitle": "A 50-60 character SEO title ending with ' | Order & More'. Front-load the primary keyword. Be specific, not generic.",
   "seoDescription": "A 150-160 character SEO meta description. Can differ slightly from description — optimize for click-through from search results.",
-  "tags": ["3-5 lowercase hyphenated tags specific to the article content, e.g. 'net-metering', 'virginia-srecs'"]
+  "tags": ["3-5 lowercase hyphenated tags specific to the article content, e.g. 'decluttering', 'kitchen-organizing'"]
 }

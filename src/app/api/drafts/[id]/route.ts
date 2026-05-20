@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest, context: Ctx) {
     social_copy: parseJson(row.social_copy),
     posted_destinations: parseJson(row.posted_destinations) ?? [],
     buffer_submissions: parseJson(row.buffer_submissions) ?? {},
+    social_review: parseJson(row.social_review) ?? {},
   };
   return NextResponse.json({ draft: hydrated });
 }

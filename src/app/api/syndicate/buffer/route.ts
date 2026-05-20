@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDraft, recordBufferSubmission } from "@/lib/db";
 import { destinations } from "@/config/destinations";
-import { createBufferPost, findChannelId } from "@/lib/buffer";
+import { createBufferPost, findChannelId, type BufferMode } from "@/lib/buffer";
 import { scratchImageUrl } from "@/lib/images";
 import type { ImageMeta } from "@/lib/schema";
 
@@ -15,15 +15,26 @@ import type { ImageMeta } from "@/lib/schema";
  */
 export async function POST(request: NextRequest) {
   try {
-    const { draftId, destinationId, text } = (await request.json()) as {
-      draftId?: string;
-      destinationId?: string;
-      text?: string;
-    };
+    const { draftId, destinationId, text, mode, scheduledAt } =
+      (await request.json()) as {
+        draftId?: string;
+        destinationId?: string;
+        text?: string;
+        mode?: BufferMode;
+        scheduledAt?: string;
+      };
 
     if (!draftId || !destinationId || typeof text !== "string") {
       return NextResponse.json(
         { error: "draftId, destinationId, and text are required" },
+        { status: 400 },
+      );
+    }
+
+    const bufferMode: BufferMode = mode ?? "queue";
+    if (bufferMode === "scheduled" && !scheduledAt) {
+      return NextResponse.json(
+        { error: "scheduledAt is required when mode is 'scheduled'" },
         { status: 400 },
       );
     }
@@ -80,11 +91,19 @@ export async function POST(request: NextRequest) {
       text: trimmed,
       imageUrl,
       service: dest.bufferService,
+      mode: bufferMode,
+      scheduledAt,
     });
 
     await recordBufferSubmission(draftId, destinationId, result.id);
 
-    return NextResponse.json({ ok: true, bufferPostId: result.id, imageUrl });
+    return NextResponse.json({
+      ok: true,
+      bufferPostId: result.id,
+      imageUrl,
+      mode: bufferMode,
+      scheduledAt: bufferMode === "scheduled" ? scheduledAt : undefined,
+    });
   } catch (err) {
     console.error("Buffer syndication error:", err);
     return NextResponse.json(

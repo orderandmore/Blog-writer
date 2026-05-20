@@ -10,8 +10,13 @@ export const STEPS = [
   { id: 2, label: "Images", description: "Upload, name, and process images" },
   { id: 3, label: "Metadata", description: "AI-assisted title, SEO, categories" },
   { id: 4, label: "Syndication", description: "Social copy for FB / IG / X / Pinterest" },
-  { id: 5, label: "Review", description: "Preview & publish to WordPress" },
+  { id: 5, label: "Review", description: "Approve socials, then publish, schedule, or save as draft" },
 ] as const;
+
+/** Per-destination review outcome in Step 5. "approved" → send to Buffer with
+ * the chosen final action; "skipped" → omit from Buffer. A destination with no
+ * entry is still pending review. */
+export type ReviewStatus = "approved" | "skipped";
 
 /** Client-side image data (includes File object + thumbnail URL). */
 export interface ClientImage extends ImageMeta {
@@ -53,6 +58,8 @@ export interface WizardState {
   wpEditUrl: string | null;
   postedDestinations: string[];
   bufferSubmissions: Record<string, { bufferPostId: string; submittedAt: string }>;
+  /** Step-5 approve/skip decisions, keyed by destination id. */
+  socialReview: Record<string, ReviewStatus>;
 }
 
 export type WizardAction =
@@ -89,6 +96,7 @@ export type WizardAction =
       bufferPostId: string;
       submittedAt: string;
     }
+  | { type: "SET_SOCIAL_REVIEW"; destId: string; status: ReviewStatus | null }
   | { type: "LOAD_DRAFT"; state: Partial<WizardState> }
   | { type: "RESET_WIZARD" };
 
@@ -118,6 +126,7 @@ export const initialWizardState: WizardState = {
   wpEditUrl: null,
   postedDestinations: [],
   bufferSubmissions: {},
+  socialReview: {},
 };
 
 export function wizardReducer(
@@ -204,6 +213,16 @@ export function wizardReducer(
           },
         },
       };
+
+    case "SET_SOCIAL_REVIEW": {
+      const next = { ...state.socialReview };
+      if (action.status === null) {
+        delete next[action.destId];
+      } else {
+        next[action.destId] = action.status;
+      }
+      return { ...state, socialReview: next };
+    }
 
     case "TOGGLE_POSTED_DESTINATION": {
       const has = state.postedDestinations.includes(action.destId);

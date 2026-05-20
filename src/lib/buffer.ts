@@ -109,12 +109,28 @@ export async function findChannelId(
   return match?.id ?? null;
 }
 
+/**
+ * How a post enters Buffer:
+ *  - "queue":     slot into the channel's existing queue schedule (the proven
+ *                 default — user can still reorder/edit before it goes live).
+ *  - "scheduled": post at a specific instant (`scheduledAt`). Used when the WP
+ *                 article is itself scheduled, so social fires *after* the
+ *                 article is live and the link resolves.
+ *  - "draft":     save as a Buffer draft — nothing auto-publishes. Used when
+ *                 the WP post is saved as a draft.
+ */
+export type BufferMode = "queue" | "scheduled" | "draft";
+
 export interface CreatePostInput {
   channelId: string;
   text: string;
   imageUrl?: string;
   /** Channel service. Used to build platform-specific metadata (e.g., Instagram requires a post type). */
   service?: BufferService;
+  /** Defaults to "queue". */
+  mode?: BufferMode;
+  /** ISO 8601 instant. Required when mode === "scheduled". */
+  scheduledAt?: string;
 }
 
 export interface CreatePostResult {
@@ -122,13 +138,58 @@ export interface CreatePostResult {
 }
 
 /**
- * Add a post to the queue for a single channel. Uses schedulingType=automatic
- * + mode=addToQueue so it slots into the channel's existing queue schedule —
- * the user can still review/edit/reorder in Buffer before it goes live.
+ * Build the per-mode `createPost` input fragment. We keep channelId/text/
+ * assets/metadata as GraphQL variables, but inline the scheduling fields so
+ * we don't have to declare Buffer's custom scalar/enum types (which we can't
+ * introspect from here). `scheduledAt` is our own ISO string (no quotes or
+ * specials), so inlining it as a literal is safe.
+ *
+ * NOTE: the queue path is byte-for-byte the previously shipped, working
+ * mutation. The "scheduled" and "draft" fragments use Buffer's documented
+ * `mode`/`scheduledAt` input fields; verify against a live Buffer account if
+ * either path errors, since the GraphQL schema isn't checked into this repo.
+ */
+function buildCreatePostInput(mode: BufferMode, scheduledAt?: string): string {
+  switch (mode) {
+    case "scheduled": {
+      if (!scheduledAt) throw new Error("scheduledAt is required for scheduled Buffer posts");
+      const iso = new Date(scheduledAt).toISOString();
+      return `
+        channelId: $channelId
+        text: $text
+        schedulingType: custom
+        mode: scheduledAt
+        scheduledAt: "${iso}"
+        assets: $assets
+        metadata: $metadata`;
+    }
+    case "draft":
+      return `
+        channelId: $channelId
+        text: $text
+        mode: draft
+        assets: $assets
+        metadata: $metadata`;
+    case "queue":
+    default:
+      return `
+        channelId: $channelId
+        text: $text
+        schedulingType: automatic
+        mode: addToQueue
+        assets: $assets
+        metadata: $metadata`;
+  }
+}
+
+/**
+ * Create a post on a single channel. The `mode` controls whether it joins the
+ * channel queue, is scheduled for a specific time, or is saved as a draft.
  */
 export async function createBufferPost(
   input: CreatePostInput,
 ): Promise<CreatePostResult> {
+  const mode = input.mode ?? "queue";
   const mutation = `
     mutation CreatePost(
       $channelId: ChannelId!
@@ -136,13 +197,7 @@ export async function createBufferPost(
       $assets: [AssetInput!]
       $metadata: PostInputMetaData
     ) {
-      createPost(input: {
-        channelId: $channelId
-        text: $text
-        schedulingType: automatic
-        mode: addToQueue
-        assets: $assets
-        metadata: $metadata
+      createPost(input: {${buildCreatePostInput(mode, input.scheduledAt)}
       }) {
         ... on PostActionSuccess { post { id } }
         ... on MutationError { message }
