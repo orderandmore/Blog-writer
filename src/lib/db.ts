@@ -276,8 +276,8 @@ export async function listDraftsSummary(
     c.query(
       `SELECT id, title, slug, status, created_at, updated_at,
               markdown, parsed_body, parsed_title, frontmatter,
-              images, social_copy, posted_destinations, current_step,
-              wp_post_id, wp_link
+              images, social_copy, posted_destinations, buffer_submissions,
+              current_step, wp_post_id, wp_link
        FROM drafts ORDER BY updated_at DESC`,
     ),
   );
@@ -285,7 +285,16 @@ export async function listDraftsSummary(
     const frontmatter = safeParse<Record<string, unknown>>(row.frontmatter);
     const images = safeParse<unknown[]>(row.images) ?? [];
     const socialCopy = safeParse<Record<string, unknown>>(row.social_copy);
+    // A destination counts as syndicated if it was sent to Buffer
+    // (buffer_submissions, set automatically on publish/re-send) or marked
+    // posted manually (posted_destinations, used for GMB). Dedupe the two.
     const posted = safeParse<string[]>(row.posted_destinations) ?? [];
+    const bufferSubs =
+      safeParse<Record<string, unknown>>(row.buffer_submissions) ?? {};
+    const syndicatedCount = new Set<string>([
+      ...posted,
+      ...Object.keys(bufferSubs),
+    ]).size;
     const body =
       (row.parsed_body as string) || (row.markdown as string) || "";
     const title =
@@ -318,7 +327,7 @@ export async function listDraftsSummary(
         social: Boolean(socialCopy?.facebook || socialCopy?.linkedin),
         published: row.status === "published",
       },
-      syndicated: { posted: posted.length, total: totalDestinations },
+      syndicated: { posted: syndicatedCount, total: totalDestinations },
       wpPostId: (row.wp_post_id as number) ?? null,
       wpLink: (row.wp_link as string) ?? null,
     };
