@@ -75,6 +75,11 @@ export interface CreatedPost {
   link: string;
   status: string;
   slug: string;
+  /** Scheduled/published time in the site timezone (WP echoes these back). */
+  date?: string;
+  /** Scheduled/published time in UTC — the authoritative go-live instant we
+   * anchor Buffer scheduling to. */
+  date_gmt?: string;
 }
 
 function siteUrl(): string {

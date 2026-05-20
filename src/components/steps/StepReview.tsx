@@ -96,14 +96,22 @@ export function StepReview() {
     dest: Destination,
     mode: BufferMode,
     index: number,
+    anchorGmt: string | null,
   ) {
     if (!state.draftId) return;
     const text = copyOf(dest);
 
+    // For a scheduled post, fire the social AFTER the article is live. We
+    // anchor to WP's authoritative go-live time (anchorGmt) rather than the
+    // picker value, and clamp to "now" so a re-send of an already-live post
+    // still lands in the future (Buffer rejects past times).
     let scheduledAt: string | undefined;
-    if (mode === "scheduled" && scheduledIso) {
-      const base = new Date(scheduledIso).getTime() + BUFFER_LEAD_MS;
-      scheduledAt = new Date(base + index * BUFFER_STAGGER_MS).toISOString();
+    if (mode === "scheduled") {
+      const anchorMs = anchorGmt ? new Date(anchorGmt).getTime() : NaN;
+      const baseMs =
+        (Number.isNaN(anchorMs) ? Date.now() : Math.max(anchorMs, Date.now())) +
+        BUFFER_LEAD_MS;
+      scheduledAt = new Date(baseMs + index * BUFFER_STAGGER_MS).toISOString();
     }
 
     try {
@@ -169,20 +177,24 @@ export function StepReview() {
         throw new Error(data.error || "Publish failed");
       }
       const result = await response.json();
-      setResultStatus(result.wpStatus ?? action);
+      const wpStatus = result.wpStatus ?? action;
+      setResultStatus(wpStatus);
       dispatch({
         type: "SET_PUBLISH_STATUS",
         status: "published",
         wpPostId: result.wpPostId,
         wpLink: result.wpLink,
         wpEditUrl: result.editUrl,
+        wpStatus,
+        wpScheduledGmt: result.wpDateGmt ?? null,
       });
 
       // WordPress is live/scheduled/drafted — now fan out to Buffer for every
-      // approved channel, in the matching mode.
+      // approved channel, in the matching mode, anchored to WP's real go-live.
       const mode = bufferModeFor(action);
+      const anchor: string | null = result.wpDateGmt ?? null;
       for (let i = 0; i < approvedDestinations.length; i++) {
-        await submitOneBuffer(approvedDestinations[i], mode, i);
+        await submitOneBuffer(approvedDestinations[i], mode, i, anchor);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Publish failed");
@@ -192,22 +204,17 @@ export function StepReview() {
     }
   }
 
-  // Retry a single failed Buffer submission after publish, reusing the action
-  // implied by the WP result so the mode + scheduling stay consistent.
-  async function retryBuffer(dest: Destination) {
-    const action =
-      resultStatus === "future"
-        ? "future"
-        : resultStatus === "draft"
-          ? "draft"
-          : "publish";
+  // (Re-)send a single destination to Buffer after publish. Works for failed
+  // sends, for channels that were skipped at publish time, and for re-pushing
+  // one that already went through. The Buffer mode + timing follow WP's actual
+  // status/go-live, persisted on the draft, so it stays correct across reloads.
+  async function resendBuffer(dest: Destination) {
+    const wpStatus = state.wpStatus ?? resultStatus ?? "publish";
+    const mode = bufferModeFor(wpStatus as "publish" | "draft" | "future");
+    const index = bufferDestinations.findIndex((d) => d.id === dest.id);
     setPublishing(true);
     try {
-      await submitOneBuffer(
-        dest,
-        bufferModeFor(action),
-        approvedDestinations.findIndex((d) => d.id === dest.id),
-      );
+      await submitOneBuffer(dest, mode, Math.max(0, index), state.wpScheduledGmt);
     } finally {
       setPublishing(false);
     }
@@ -299,10 +306,11 @@ export function StepReview() {
             onSkip={() => setReview(dest.id, "skipped")}
             onReset={() => setReview(dest.id, null)}
             isPublished={isPublished}
-            resultStatus={resultStatus}
+            wpStatus={state.wpStatus ?? resultStatus}
             submission={state.bufferSubmissions[dest.id]}
             bufferError={bufferErrors[dest.id]}
-            onRetry={() => retryBuffer(dest)}
+            onResend={() => resendBuffer(dest)}
+            sending={publishing}
             featuredImg={featuredImg}
             featuredBase={featuredBase}
             draftId={state.draftId}
@@ -330,10 +338,11 @@ export function StepReview() {
               onSkip={() => {}}
               onReset={() => {}}
               isPublished={isPublished}
-              resultStatus={resultStatus}
+              wpStatus={state.wpStatus ?? resultStatus}
               submission={undefined}
               bufferError={undefined}
-              onRetry={() => {}}
+              onResend={() => {}}
+              sending={publishing}
               featuredImg={featuredImg}
               featuredBase={featuredBase}
               draftId={state.draftId}
@@ -627,10 +636,11 @@ function ReviewCard({
   onSkip,
   onReset,
   isPublished,
-  resultStatus,
+  wpStatus,
   submission,
   bufferError,
-  onRetry,
+  onResend,
+  sending,
   featuredImg,
   featuredBase,
   draftId,
@@ -643,10 +653,11 @@ function ReviewCard({
   onSkip: () => void;
   onReset: () => void;
   isPublished: boolean;
-  resultStatus: string | null;
+  wpStatus: string | null;
   submission: { bufferPostId: string; submittedAt: string } | undefined;
   bufferError: string | undefined;
-  onRetry: () => void;
+  onResend: () => void;
+  sending: boolean;
   featuredImg: ClientImage | undefined;
   featuredBase: string;
   draftId: string | null;
@@ -731,21 +742,22 @@ function ReviewCard({
         <textarea
           value={copy}
           onChange={(e) => onCopyChange(e.target.value)}
-          disabled={isPublished}
           placeholder="(Generate social copy in Step 4, or write it here)"
-          className="w-full text-xs text-[var(--foreground)] bg-[var(--background)] border border-[var(--border)] rounded p-2 font-sans min-h-[8rem] resize-y focus:outline-none focus:border-[var(--primary)] disabled:opacity-70"
+          className="w-full text-xs text-[var(--foreground)] bg-[var(--background)] border border-[var(--border)] rounded p-2 font-sans min-h-[8rem] resize-y focus:outline-none focus:border-[var(--primary)]"
         />
       </div>
 
-      {/* Buffer submission status (post-publish) */}
+      {/* Buffer submission status + (re-)send (post-publish) */}
       {isBuffer && isPublished && (
         <BufferStatus
           dest={dest}
           submission={submission}
           reviewStatus={reviewStatus}
-          resultStatus={resultStatus}
+          wpStatus={wpStatus}
           bufferError={bufferError}
-          onRetry={onRetry}
+          onResend={onResend}
+          sending={sending}
+          disabled={!copy.trim() || overLimit}
         />
       )}
 
@@ -772,60 +784,72 @@ function BufferStatus({
   dest,
   submission,
   reviewStatus,
-  resultStatus,
+  wpStatus,
   bufferError,
-  onRetry,
+  onResend,
+  sending,
+  disabled,
 }: {
   dest: Destination;
   submission: { bufferPostId: string; submittedAt: string } | undefined;
   reviewStatus: ReviewStatus | undefined;
-  resultStatus: string | null;
+  wpStatus: string | null;
   bufferError: string | undefined;
-  onRetry: () => void;
+  onResend: () => void;
+  sending: boolean;
+  disabled: boolean;
 }) {
-  if (reviewStatus === "skipped") {
-    return (
-      <p className="text-[10px] text-[var(--muted)]">
-        Skipped — not sent to Buffer.
-      </p>
-    );
-  }
+  const verb =
+    wpStatus === "future"
+      ? "Scheduled in Buffer"
+      : wpStatus === "draft"
+        ? "Saved as Buffer draft"
+        : "Queued in Buffer";
 
-  if (submission) {
-    const verb =
-      resultStatus === "future"
-        ? "Scheduled in Buffer"
-        : resultStatus === "draft"
-          ? "Saved as Buffer draft"
-          : "Queued in Buffer";
-    return (
-      <div className="p-2.5 rounded bg-[var(--success)]/10 border border-[var(--success)]/30 text-[10px]">
-        <p className="font-medium text-[var(--success)]">{verb} ✓</p>
-        <p className="text-[var(--muted)] mt-0.5">
-          Buffer post id:{" "}
-          <code className="font-mono">{submission.bufferPostId}</code>
-          {" · "}
-          {new Date(submission.submittedAt).toLocaleString()}
+  // A (re-)send button is always available after publish — for failed sends,
+  // for channels skipped at publish time, and to re-push one that went through.
+  const sendLabel = sending
+    ? "Sending…"
+    : submission
+      ? `Re-send to ${dest.name}`
+      : `Send to ${dest.name}`;
+
+  return (
+    <div className="space-y-2">
+      {submission && (
+        <div className="p-2.5 rounded bg-[var(--success)]/10 border border-[var(--success)]/30 text-[10px]">
+          <p className="font-medium text-[var(--success)]">{verb} ✓</p>
+          <p className="text-[var(--muted)] mt-0.5">
+            Buffer post id:{" "}
+            <code className="font-mono">{submission.bufferPostId}</code>
+            {" · "}
+            {new Date(submission.submittedAt).toLocaleString()}
+          </p>
+        </div>
+      )}
+
+      {!submission && reviewStatus === "skipped" && (
+        <p className="text-[10px] text-[var(--muted)]">
+          Skipped at publish — not sent to Buffer. You can still send it now.
         </p>
-      </div>
-    );
-  }
+      )}
 
-  if (bufferError) {
-    return (
-      <div className="p-2.5 rounded bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[10px] space-y-1.5">
-        <p className="text-[var(--danger)]">Buffer failed: {bufferError}</p>
-        <button
-          onClick={onRetry}
-          className="text-[10px] px-2 py-1 rounded bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90"
-        >
-          Retry {dest.name}
-        </button>
-      </div>
-    );
-  }
+      {bufferError && (
+        <p className="text-[10px] text-[var(--danger)]">
+          Buffer failed: {bufferError}
+        </p>
+      )}
 
-  return null;
+      <button
+        onClick={onResend}
+        disabled={sending || disabled}
+        title={disabled ? "Add copy within the character limit first" : undefined}
+        className="text-[10px] px-2 py-1 rounded bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {sendLabel}
+      </button>
+    </div>
+  );
 }
 
 function CharCount({

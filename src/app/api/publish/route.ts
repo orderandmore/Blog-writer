@@ -137,16 +137,23 @@ export async function POST(request: NextRequest) {
     const tagIds = await resolveTagIds(meta.tags);
 
     // 7. Build + send the WP create-post request.
+    //
+    // For scheduled posts, send the UTC instant as `date_gmt`. WP expects a
+    // GMT datetime WITHOUT a timezone designator (no trailing "Z" and no
+    // milliseconds) — passing the raw toISOString() form ("…000Z") makes some
+    // WP versions misparse it and shift the publish time. Normalize to
+    // "YYYY-MM-DDTHH:MM:SS". WP derives the site-local `date` from this.
+    const scheduledGmt =
+      meta.status === "future"
+        ? new Date(meta.pubDate).toISOString().replace(/\.\d{3}Z$/, "")
+        : undefined;
     const postInput: CreatePostInput = {
       title: meta.title,
       content: html,
       excerpt: meta.description,
       slug,
       status: meta.status === "future" ? "future" : meta.status,
-      // For scheduled posts, send the UTC instant as date_gmt — WP derives
-      // the site-local publish time from it. (meta.pubDate is a UTC ISO
-      // string produced by the wizard's datetime picker.)
-      date_gmt: meta.status === "future" ? meta.pubDate : undefined,
+      date_gmt: scheduledGmt,
       categories: meta.categoryIds,
       tags: tagIds,
       featured_media: featuredMediaId,
@@ -157,22 +164,26 @@ export async function POST(request: NextRequest) {
 
     const created = await createPost(postInput);
 
-    // 8. Persist WP IDs on the draft.
+    // 8. Persist WP IDs + the authoritative go-live time on the draft. We use
+    //    WP's echoed date_gmt (not what we sent) so Buffer scheduling — even a
+    //    re-send in a later session — anchors to the real publish instant.
     if (draftId) {
       await updateDraft(draftId, {
         status: "published",
         wp_post_id: created.id,
         wp_link: created.link,
         wp_status: created.status,
+        wp_scheduled_gmt: created.date_gmt ?? null,
       });
     }
 
-    // 9. Return what the wizard needs to render the success state +
-    //    deep-link to her WP admin.
+    // 9. Return what the wizard needs to render the success state, deep-link to
+    //    her WP admin, and anchor Buffer scheduling to WP's real go-live time.
     return NextResponse.json({
       wpPostId: created.id,
       wpLink: created.link,
       wpStatus: created.status,
+      wpDateGmt: created.date_gmt ?? null,
       editUrl: adminEditUrl(created.id),
       seoPlugin: seoConfig.plugin,
       uploadedImageCount: Object.keys(uploaded).length,
