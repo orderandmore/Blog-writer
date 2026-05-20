@@ -7,8 +7,11 @@ import { scratchImageUrl } from "@/lib/images";
 import type { ImageMeta } from "@/lib/schema";
 
 // Buffer scheduling, relative to the WP article's actual go-live: fire the
-// first social this long after, then stagger each channel.
-const BUFFER_LEAD_MS = 60 * 60 * 1000; // 1 hour after the article is live
+// first social a full day after the article publishes, then stagger each
+// channel. The 1-day lead keeps socials safely after go-live even if Buffer's
+// account timezone display differs from the WP/site timezone by a few hours
+// (the source of the sub-day skew seen in testing).
+const BUFFER_LEAD_MS = 24 * 60 * 60 * 1000; // 1 day after the article is live
 const BUFFER_STAGGER_MS = 30 * 60 * 1000; // 30 min between channels
 
 /**
