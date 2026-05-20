@@ -21,6 +21,13 @@ export function StepReview() {
   const postedTo = new Set(state.postedDestinations);
   const [error, setError] = useState<string | null>(null);
   const [editedCopy, setEditedCopy] = useState<Record<string, string>>({});
+  // Scheduling: a local datetime-local value (browser local time). Defaults
+  // to ~tomorrow 9am so the picker isn't empty. Only used when the user
+  // clicks "Schedule".
+  const [scheduledFor, setScheduledFor] = useState<string>(defaultScheduleLocal);
+  // The WP status returned by the publish call ("publish" | "draft" |
+  // "future"), used to tailor the success message.
+  const [resultStatus, setResultStatus] = useState<string | null>(null);
 
   const fm = state.postMeta;
   const slug = fm.title ? generateSlug(fm.title) : "untitled";
@@ -31,33 +38,40 @@ export function StepReview() {
     state.wpLink || `https://orderandmore.com/${slug}/`;
   void pubDate;
 
-  const filesToCommit = [
-    `src/content/blog/${slug}.md`,
-    ...state.images
-      .filter((i) => i.processed)
-      .flatMap((i) => {
-        const main = `public${i.repoPath}`;
-        if (i.type === "featured") {
-          const social = `public${i.repoPath.replace(/\.webp$/, "-social.webp")}`;
-          const socialJpg = `public${i.repoPath.replace(/\.webp$/, "-social.jpg")}`;
-          const socialSquare = `public${i.repoPath.replace(/\.webp$/, "-social-square.jpg")}`;
-          return [main, social, socialJpg, socialSquare];
-        }
-        return [main];
-      }),
-  ];
+  // datetime-local gives "YYYY-MM-DDTHH:mm" in the browser's local zone.
+  // new Date() interprets that as local time; toISOString() converts to a
+  // proper UTC ISO string (with Z). The publish route sends this as WP's
+  // `date_gmt`, and WP derives the site-local publish time from it — so a
+  // 9am pick in Patty's Denver browser schedules for 9am Denver regardless
+  // of where the server runs.
+  const scheduledIso =
+    scheduledFor && !Number.isNaN(new Date(scheduledFor).getTime())
+      ? new Date(scheduledFor).toISOString()
+      : "";
+  const scheduleInFuture =
+    !!scheduledFor && new Date(scheduledFor).getTime() > Date.now();
 
-  async function handlePublish(status: "draft" | "publish") {
+  async function handlePublish(
+    status: "draft" | "publish" | "future",
+    scheduledDate?: string,
+  ) {
     setPublishing(true);
     setError(null);
 
     try {
+      const postMeta: Record<string, unknown> = { ...fm, status };
+      if (status === "future" && scheduledDate) {
+        // Override pubDate with the scheduled time — the publish route uses
+        // meta.pubDate as the WP `date` when status is "future".
+        postMeta.pubDate = scheduledDate;
+      }
+
       const response = await fetch("/api/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug,
-          postMeta: { ...fm, status },
+          postMeta,
           body: state.parsedBody,
           images: state.images.filter((i) => i.processed),
           draftId: state.draftId,
@@ -70,6 +84,7 @@ export function StepReview() {
       }
 
       const result = await response.json();
+      setResultStatus(result.wpStatus ?? status);
 
       dispatch({
         type: "SET_PUBLISH_STATUS",
@@ -99,7 +114,8 @@ export function StepReview() {
           Review & Publish
         </h2>
         <p className="text-sm text-[var(--muted)]">
-          Review your post, then publish or create a draft PR.
+          Review your post, then publish now, schedule it, or save it as a
+          WordPress draft.
         </p>
       </div>
 
@@ -107,7 +123,11 @@ export function StepReview() {
       {isPublished && (
         <div className="p-4 rounded-lg bg-[var(--success)]/10 border border-[var(--success)]/30">
           <p className="text-sm font-medium text-[var(--success)]">
-            Published successfully!
+            {resultStatus === "future"
+              ? "Scheduled successfully! WordPress will publish it at the chosen time."
+              : resultStatus === "draft"
+                ? "Saved as a WordPress draft."
+                : "Published successfully!"}
           </p>
           {state.wpPostId && (
             <p className="text-xs text-[var(--muted)] mt-1">
@@ -340,21 +360,62 @@ export function StepReview() {
 
       {/* Publish bar */}
       {!isPublished && (
-        <div className="flex items-center gap-3 pt-4 border-t border-[var(--border)]">
-          <button
-            onClick={() => handlePublish("publish")}
-            disabled={publishing || !fm.title || !fm.description}
-            className="px-6 py-2.5 rounded-lg bg-[var(--success)] text-white text-sm font-medium hover:bg-[var(--success)]/90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {publishing ? "Publishing..." : "Publish Live"}
-          </button>
-          <button
-            onClick={() => handlePublish("draft")}
-            disabled={publishing || !fm.title || !fm.description}
-            className="px-6 py-2.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] text-sm font-medium hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {publishing ? "Saving..." : "Save as WP Draft"}
-          </button>
+        <div className="pt-4 border-t border-[var(--border)] space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => handlePublish("publish")}
+              disabled={publishing || !fm.title || !fm.description}
+              className="px-6 py-2.5 rounded-lg bg-[var(--success)] text-white text-sm font-medium hover:bg-[var(--success)]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {publishing ? "Publishing..." : "Publish Live"}
+            </button>
+            <button
+              onClick={() => handlePublish("draft")}
+              disabled={publishing || !fm.title || !fm.description}
+              className="px-6 py-2.5 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] text-sm font-medium hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {publishing ? "Saving..." : "Save as WP Draft"}
+            </button>
+          </div>
+
+          {/* Schedule row */}
+          <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">
+                Schedule for
+              </label>
+              <input
+                type="datetime-local"
+                value={scheduledFor}
+                min={defaultScheduleLocal()}
+                onChange={(e) => setScheduledFor(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--primary)]"
+              />
+            </div>
+            <button
+              onClick={() => handlePublish("future", scheduledIso)}
+              disabled={
+                publishing ||
+                !fm.title ||
+                !fm.description ||
+                !scheduleInFuture
+              }
+              className="px-6 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+              title={
+                !scheduleInFuture
+                  ? "Pick a date and time in the future"
+                  : undefined
+              }
+            >
+              {publishing ? "Scheduling..." : "Schedule"}
+            </button>
+            <p className="text-xs text-[var(--muted)] flex-1 min-w-[12rem]">
+              WordPress will auto-publish at this time (your site&rsquo;s
+              timezone). Until then it sits as a scheduled post you can still
+              edit in WP admin.
+            </p>
+          </div>
+
           {(!fm.title || !fm.description) && (
             <p className="text-xs text-[var(--warning)]">
               Fill in title and description in Step 3 first.
@@ -364,6 +425,16 @@ export function StepReview() {
       )}
     </div>
   );
+}
+
+/** datetime-local default: tomorrow at 09:00 in the browser's local zone,
+ * formatted as "YYYY-MM-DDTHH:mm" (what <input type="datetime-local"> wants). */
+function defaultScheduleLocal(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function CharCount({

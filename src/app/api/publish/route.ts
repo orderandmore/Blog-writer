@@ -143,7 +143,10 @@ export async function POST(request: NextRequest) {
       excerpt: meta.description,
       slug,
       status: meta.status === "future" ? "future" : meta.status,
-      date: meta.status === "future" ? meta.pubDate : undefined,
+      // For scheduled posts, send the UTC instant as date_gmt — WP derives
+      // the site-local publish time from it. (meta.pubDate is a UTC ISO
+      // string produced by the wizard's datetime picker.)
+      date_gmt: meta.status === "future" ? meta.pubDate : undefined,
       categories: meta.categoryIds,
       tags: tagIds,
       featured_media: featuredMediaId,

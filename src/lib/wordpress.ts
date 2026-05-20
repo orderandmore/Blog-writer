@@ -62,7 +62,8 @@ export interface CreatePostInput {
   excerpt?: string;
   slug?: string;
   status: "draft" | "publish" | "future" | "pending" | "private";
-  date?: string; // ISO 8601 — for "future" scheduled posts
+  date?: string; // ISO 8601 in site timezone
+  date_gmt?: string; // ISO 8601 UTC — preferred for scheduling ("future")
   categories?: number[];
   tags?: number[]; // integer IDs — use resolveTagIds() to convert names first
   featured_media?: number;
