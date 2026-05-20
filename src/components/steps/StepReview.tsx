@@ -363,36 +363,30 @@ export function StepReview() {
           </div>
 
           {/* Schedule row */}
-          <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-            <div>
-              <label className="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">
-                Schedule for
-              </label>
-              <input
-                type="datetime-local"
-                value={scheduledFor}
-                min={defaultScheduleLocal()}
-                onChange={(e) => setScheduledFor(e.target.value)}
-                className="px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--primary)]"
-              />
+          <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-3">
+            <label className="text-[10px] uppercase tracking-wider text-[var(--muted)] block">
+              Schedule for
+            </label>
+            <SchedulePicker value={scheduledFor} onChange={setScheduledFor} />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => handleFinalAction("future")}
+                disabled={!canPublish || !scheduleInFuture}
+                className="px-6 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+                title={
+                  !scheduleInFuture
+                    ? "Pick a date and time in the future"
+                    : undefined
+                }
+              >
+                {publishing ? "Scheduling..." : "Schedule"}
+              </button>
+              <p className="text-xs text-[var(--muted)] flex-1 min-w-[12rem]">
+                WordPress auto-publishes at this time (your site&rsquo;s
+                timezone). Approved socials are scheduled in Buffer starting an
+                hour later, after the article is live, staggered 30 min apart.
+              </p>
             </div>
-            <button
-              onClick={() => handleFinalAction("future")}
-              disabled={!canPublish || !scheduleInFuture}
-              className="px-6 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-              title={
-                !scheduleInFuture
-                  ? "Pick a date and time in the future"
-                  : undefined
-              }
-            >
-              {publishing ? "Scheduling..." : "Schedule"}
-            </button>
-            <p className="text-xs text-[var(--muted)] flex-1 min-w-[12rem]">
-              WordPress auto-publishes at this time (your site&rsquo;s
-              timezone). Approved socials are scheduled in Buffer starting an
-              hour later — after the article is live — staggered 30 min apart.
-            </p>
           </div>
 
           {!hasMeta && (
@@ -420,6 +414,208 @@ function defaultScheduleLocal(): string {
   d.setHours(9, 0, 0, 0);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** Parse "YYYY-MM-DDTHH:mm" (local) into parts. minutes = minutes-of-day. */
+function parseLocalDateTime(
+  value: string,
+): { year: number; month: number; day: number; minutes: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return null;
+  return {
+    year: Number(m[1]),
+    month: Number(m[2]) - 1,
+    day: Number(m[3]),
+    minutes: Number(m[4]) * 60 + Number(m[5]),
+  };
+}
+
+function formatLocalDateTime(
+  year: number,
+  month: number,
+  day: number,
+  minutes: number,
+): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${year}-${pad(month + 1)}-${pad(day)}T${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+}
+
+function timeLabel(minutes: number): string {
+  let hh = Math.floor(minutes / 60);
+  const mm = minutes % 60;
+  const ampm = hh >= 12 ? "PM" : "AM";
+  hh = hh % 12 || 12;
+  return `${hh}:${String(mm).padStart(2, "0")} ${ampm}`;
+}
+
+/** Calendar (click a day) + 30-min time dropdown. Reads/writes the same
+ * "YYYY-MM-DDTHH:mm" local string the wizard already uses, so scheduling
+ * logic upstream is unchanged. */
+function SchedulePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const parsed =
+    parseLocalDateTime(value) ?? parseLocalDateTime(defaultScheduleLocal())!;
+  const [view, setView] = useState({ year: parsed.year, month: parsed.month });
+
+  const now = new Date();
+  const todayY = now.getFullYear();
+  const todayM = now.getMonth();
+  const todayD = now.getDate();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const atCurrentMonth = view.year === todayY && view.month === todayM;
+  const isSelectedToday =
+    parsed.year === todayY && parsed.month === todayM && parsed.day === todayD;
+
+  function shiftMonth(delta: number) {
+    setView((v) => {
+      const d = new Date(v.year, v.month + delta, 1);
+      return { year: d.getFullYear(), month: d.getMonth() };
+    });
+  }
+
+  const firstWeekday = new Date(view.year, view.month, 1).getDay();
+  const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const timeOptions: number[] = [];
+  for (let t = 0; t < 24 * 60; t += 30) timeOptions.push(t);
+
+  const readable = new Date(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    Math.floor(parsed.minutes / 60),
+    parsed.minutes % 60,
+  ).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="flex flex-wrap gap-4">
+      {/* Calendar */}
+      <div className="w-60 rounded-lg bg-[var(--background)] border border-[var(--border)] p-3">
+        <div className="flex items-center justify-between mb-2">
+          <button
+            type="button"
+            onClick={() => shiftMonth(-1)}
+            disabled={atCurrentMonth}
+            className="px-2 py-0.5 rounded text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="Previous month"
+          >
+            ‹
+          </button>
+          <span className="text-xs font-medium text-[var(--foreground)]">
+            {MONTHS[view.month]} {view.year}
+          </span>
+          <button
+            type="button"
+            onClick={() => shiftMonth(1)}
+            className="px-2 py-0.5 rounded text-[var(--muted)] hover:text-[var(--foreground)]"
+            aria-label="Next month"
+          >
+            ›
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-0.5 text-center">
+          {WEEKDAYS.map((w) => (
+            <span key={w} className="text-[10px] text-[var(--muted)] py-1">
+              {w}
+            </span>
+          ))}
+          {cells.map((day, i) => {
+            if (day === null) return <span key={`e${i}`} />;
+            const isPast =
+              view.year === todayY && view.month === todayM && day < todayD;
+            const isSelected =
+              day === parsed.day &&
+              view.year === parsed.year &&
+              view.month === parsed.month;
+            const isToday =
+              view.year === todayY && view.month === todayM && day === todayD;
+            return (
+              <button
+                key={day}
+                type="button"
+                disabled={isPast}
+                onClick={() =>
+                  onChange(
+                    formatLocalDateTime(
+                      view.year,
+                      view.month,
+                      day,
+                      parsed.minutes,
+                    ),
+                  )
+                }
+                className={`text-xs rounded py-1 ${
+                  isSelected
+                    ? "bg-[var(--primary)] text-white"
+                    : isPast
+                      ? "text-[var(--muted)] opacity-40 cursor-not-allowed"
+                      : "text-[var(--foreground)] hover:bg-[var(--surface)]"
+                } ${isToday && !isSelected ? "ring-1 ring-[var(--primary)]/50" : ""}`}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Time + readout */}
+      <div className="space-y-2">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-[var(--muted)] block mb-1">
+            Time
+          </label>
+          <select
+            value={parsed.minutes}
+            onChange={(e) =>
+              onChange(
+                formatLocalDateTime(
+                  parsed.year,
+                  parsed.month,
+                  parsed.day,
+                  Number(e.target.value),
+                ),
+              )
+            }
+            className="px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] text-sm focus:outline-none focus:border-[var(--primary)]"
+          >
+            {timeOptions.map((t) => (
+              <option
+                key={t}
+                value={t}
+                disabled={isSelectedToday && t <= nowMinutes}
+              >
+                {timeLabel(t)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-[var(--muted)]">{readable}</p>
+      </div>
+    </div>
+  );
 }
 
 function ReviewCard({
