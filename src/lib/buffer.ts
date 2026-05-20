@@ -139,15 +139,16 @@ export interface CreatePostResult {
 
 /**
  * Build the per-mode `createPost` input fragment. We keep channelId/text/
- * assets/metadata as GraphQL variables, but inline the scheduling fields so
- * we don't have to declare Buffer's custom scalar/enum types (which we can't
- * introspect from here). `scheduledAt` is our own ISO string (no quotes or
- * specials), so inlining it as a literal is safe.
+ * assets/metadata as GraphQL variables, but inline the scheduling fields.
+ * `dueAt` is our own ISO string (no quotes or specials), so inlining it as a
+ * literal is safe and sidesteps declaring Buffer's DateTime scalar.
  *
- * NOTE: the queue path is byte-for-byte the previously shipped, working
- * mutation. The "scheduled" and "draft" fragments use Buffer's documented
- * `mode`/`scheduledAt` input fields; verify against a live Buffer account if
- * either path errors, since the GraphQL schema isn't checked into this repo.
+ * Field/enum names below are verified against Buffer's live GraphQL schema
+ * (CreatePostInput): schedulingType ∈ {notification, automatic}; mode (ShareMode)
+ * ∈ {addToQueue, shareNow, shareNext, customScheduled, recommendedTime}; a
+ * specific time is set via `dueAt`; drafts are flagged with `saveToDraft`.
+ * We always use schedulingType=automatic (Buffer publishes for us, vs.
+ * "notification" which only reminds the user).
  */
 function buildCreatePostInput(mode: BufferMode, scheduledAt?: string): string {
   switch (mode) {
@@ -157,17 +158,22 @@ function buildCreatePostInput(mode: BufferMode, scheduledAt?: string): string {
       return `
         channelId: $channelId
         text: $text
-        schedulingType: custom
-        mode: scheduledAt
-        scheduledAt: "${iso}"
+        schedulingType: automatic
+        mode: customScheduled
+        dueAt: "${iso}"
         assets: $assets
         metadata: $metadata`;
     }
     case "draft":
+      // Saved as a draft (nothing auto-publishes). mode is NON_NULL on the
+      // input, so we still pass addToQueue — it's where the post lands if she
+      // later approves the draft in Buffer.
       return `
         channelId: $channelId
         text: $text
-        mode: draft
+        schedulingType: automatic
+        mode: addToQueue
+        saveToDraft: true
         assets: $assets
         metadata: $metadata`;
     case "queue":

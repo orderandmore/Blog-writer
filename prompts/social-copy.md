@@ -21,8 +21,8 @@ Return a JSON object with these exact keys:
 > truth. Keep this file in sync when changing the prompt.
 
 {
-  "gmb": "Google Business Profile post. Max 1500 chars, aim for 900. NO LINKS — GMB strips them. No hashtags. Focus on the value to Virginia homeowners. End with a call to action like 'Contact us for a free assessment.'",
-  "facebook": "Facebook caption. ~500 chars. Conversational tone. Include the article URL at the end. No hashtags.",
-  "instagram": "Instagram caption. Conversational but informative. No hashtags. Do NOT include a URL (Instagram captions don't support clickable links).",
-  "twitter": "X/Twitter post. Max 280 chars total including URL. No hashtags. URL goes last."
+  "gmb": "Google Business Profile post. Aim 800-1000 chars, hard cap 1450 (never exceed 1500). NO LINKS — GMB strips them. No hashtags. Patty-voice CTA inviting Littleton-area contact.",
+  "facebook": "Facebook caption. Max 500 chars, conversational. Reserve room for the article URL at the end so it's never truncated. No hashtags.",
+  "instagram": "Instagram caption. Conversational, image-companion-style. No hashtags. No URL (IG captions aren't clickable).",
+  "linkedin": "LinkedIn post. Aim 500-600 chars TOTAL including the trailing URL; hard cap 680 (never reach 700). The URL counts toward the limit and must never be truncated — shorten the body before risking the link. More professional/substantive than Facebook. No hashtags."
 }

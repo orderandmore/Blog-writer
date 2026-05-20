@@ -115,7 +115,7 @@ const DEFAULTS: Record<string, string> = {
   // socialAndPress (key name kept for migration compat) — produces only
   // social copy for Facebook, Instagram, LinkedIn, GMB. No press releases.
   "socialAndPress.system":
-    "You write social media copy for Patty Powers' home organizing business (Order and More LLC, Littleton, Colorado). {{brandRules}}\n\nNo hashtags on any platform. Stay strictly within the character limits noted per platform — count URLs toward the total where the platform description says so. STRICT compliance with the GMB limit (1500 chars) is critical — aim for ~800-1000 chars there, never exceed 1450.\n\nThe article URL provided in the user prompt ({{url}}) is the canonical permalink. When a platform requires a URL, use exactly that URL verbatim — no shorteners. Facebook and LinkedIn MUST contain this exact URL at the end. Instagram and GMB do NOT include URLs.",
+    "You write social media copy for Patty Powers' home organizing business (Order and More LLC, Littleton, Colorado). {{brandRules}}\n\nNo hashtags on any platform. Stay strictly within the character limits noted per platform — count URLs toward the total where the platform description says so. STRICT compliance with the GMB limit (1500 chars) is critical — aim for ~800-1000 chars there, never exceed 1450.\n\nThe article URL provided in the user prompt ({{url}}) is the canonical permalink. When a platform requires a URL, use exactly that URL verbatim — no shorteners. Facebook and LinkedIn MUST contain this exact URL at the end. Where the URL appears at the end (Facebook, LinkedIn), reserve room for its full length within the character limit and shorten the body if needed — the link must never be cut off. Instagram and GMB do NOT include URLs.",
   "socialAndPress.user":
     "Generate social media copy for this blog post.\n\nTitle: {{title}}\nArticle URL: {{url}}\nContact: {{contactName}}, {{contactEmail}}{{contactPhoneSuffix}}\n\nArticle:\n{{body}}{{linksBlock}}",
 
@@ -140,7 +140,7 @@ const DEFAULTS: Record<string, string> = {
   "socialAndPress.schema.instagram":
     "Instagram caption in Patty's voice, conversational and image-companion-style. No hashtags. No URL (IG doesn't make links clickable).",
   "socialAndPress.schema.linkedin":
-    "LinkedIn post in Patty's voice, max 700 chars. More professional and substantive than Facebook — share a clear insight or takeaway from the article, suitable for an audience of busy professionals and parents. No hashtags. Must include the exact article URL ({{url}}) verbatim at the end.",
+    "LinkedIn post in Patty's voice. AIM for 500-600 characters TOTAL including the trailing URL; HARD CAP 680 (never reach 700). The exact article URL ({{url}}) goes verbatim on the last line and COUNTS toward that total — leave room for it so it can never be truncated. Treat ~600 as a ceiling, not a target: if the draft runs long, cut a sentence rather than risk dropping the link. More professional and substantive than Facebook — share one clear insight or takeaway from the article, suitable for busy professionals and parents. No hashtags.",
 };
 
 export type PromptKey = keyof typeof DEFAULTS;
