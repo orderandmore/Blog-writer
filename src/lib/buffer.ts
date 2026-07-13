@@ -62,17 +62,26 @@ let channelsCache: { value: BufferChannel[]; at: number } | null = null;
 let orgIdCache: { value: string; at: number } | null = null;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * Resolve the organization that owns the channels.
+ *
+ * Must use `account { organizations }`. A personal access token may NOT read
+ * `account { currentOrganization }` — Buffer answers HTTP 200 but puts a
+ * FORBIDDEN error ("Not authorized to access this resource") in the errors
+ * array, which fails every Buffer call at this first hop. The account has one
+ * organization, so we take the first.
+ */
 async function getOrganizationId(): Promise<string> {
   if (orgIdCache && Date.now() - orgIdCache.at < CACHE_TTL_MS) {
     return orgIdCache.value;
   }
   const data = await bufferGraphQL<{
-    account: { currentOrganization: { id: string } | null } | null;
-  }>(`query { account { currentOrganization { id } } }`);
-  const id = data.account?.currentOrganization?.id;
+    account: { organizations: { id: string }[] | null } | null;
+  }>(`query { account { organizations { id } } }`);
+  const id = data.account?.organizations?.[0]?.id;
   if (!id) {
     throw new Error(
-      "Buffer: no current organization on this account — connect a Buffer org first.",
+      "Buffer: no organization on this account — connect a Buffer org first.",
     );
   }
   orgIdCache = { value: id, at: Date.now() };
