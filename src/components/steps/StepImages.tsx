@@ -71,6 +71,35 @@ async function downscaleForUpload(file: File): Promise<File> {
   });
 }
 
+/**
+ * Turn a failed /api/images/process response into something diagnosable.
+ * The route reports the real cause in `{ error }` (bad image, Blob write,
+ * database), but platform-level failures never reach it — Vercel rejects an
+ * oversized body with 413 and returns HTML, not JSON — so fall back to the
+ * status. Always include the status: it separates "our code threw" (500) from
+ * "the request never arrived" (413/504).
+ */
+async function describeProcessingFailure(response: Response): Promise<string> {
+  if (response.status === 413) {
+    return "Images are too large to upload (over Vercel's 4.5MB request limit). Try fewer or smaller images.";
+  }
+
+  const raw = (await response.text().catch(() => "")).trim();
+  let detail = "";
+  try {
+    const parsed = JSON.parse(raw) as { error?: unknown };
+    if (typeof parsed.error === "string") detail = parsed.error;
+  } catch {
+    // An HTML gateway/timeout page tells the user nothing — drop it.
+    if (!raw.startsWith("<")) detail = raw;
+  }
+  detail = detail.replace(/\s+/g, " ").trim().slice(0, 300);
+
+  return detail
+    ? `Image processing failed (HTTP ${response.status}): ${detail}`
+    : `Image processing failed (HTTP ${response.status}).`;
+}
+
 export function StepImages() {
   const { state, dispatch } = useWizard();
   const [processing, setProcessing] = useState(false);
@@ -171,7 +200,7 @@ export function StepImages() {
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Image processing failed");
+      if (!response.ok) throw new Error(await describeProcessingFailure(response));
       const result = await response.json();
 
       if (result.draftId && !state.draftId) {
